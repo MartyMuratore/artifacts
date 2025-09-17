@@ -1,26 +1,43 @@
-# artifacts
+# Search and Parameter estimation in presence of glitches
 
 
-The following python files are use to produce the results of the paper:
+This repository provides codes to re-produce the results of this paper:
 
 https://arxiv.org/pdf/2505.19870
 
-If something is missing or not working I appreciated that you notify myself about this so I can fix it! Eryn and BBHx are required for running the notebook. The use of GPU is also encouraged.
+There are some dependences that are needed in order to run the codes provided. 
 
-In particular:
+In particular to run the analysis of the Spritz pipeline Eryn, lisanalysis tool and BBhx which can be found in https://github.com/mikekatz04.
 
-glitches and shapelet models can be found in: glitch_shapelet_analytical_waveform.py
+The use of GPU is also encouraged. 
 
-the reversible jump MCMC code to search and fit for multiple glitches: glitch_fitting_freq_doman_RJ.py
+There are different notebook present in the folder:
 
-the moves used and developed for glitch searches are: group_stretch_proposal.py
+1) In case only the glith or shapelet waveform in time or frequency domain is need:
+   glitch_shapelet_analytical_waveform.py
 
-the code for doing PE with glitch and MBHB and noise:  glitch_fitting_mbhb_with_noise.py
+2) To produce glitch distributions from LISAPathfinder with or without instrumental noise with following reversible jump analysis approach (note that this notebook require this file glitch_params_all_PRDLPF.h5 which is not publically available. Contact the authors in case you need this file to generate your glitch distributions or alternative create your distributions):
 
-the codes for computing the maximum overlap between the MBHB and the glitch:  max_matching_glitch_MBHB.py
+   a) glitch_fitting_freq_doman_RJ.py
 
-the codes used for analysing Spritz data are:
+   b) The move used and developed for glitch searches is : group_stretch_proposal.py.
 
-for glitch search: LDC2_spritz_analysis_shorter_segments.py
+3) To only perform parameter estimation without reversible jump in presence of glitches, mbhb and noise
 
-for search and PE:  LDC2_spritz_analysis_new.py
+   glitch_fitting_mbhb_with_noise.py
+
+     
+   
+4) the codes used for analysing Spritz data are:
+
+   searches : LDC2_spritz_analysis_shorter_segments.py
+
+   parameter estimation:  LDC2_spritz_analysis_new.py 
+
+5) additional files present and that are needed are:
+
+   a) to generate synthetic noise (PSD): synthetic_noise_generator.py
+   b) the codes for computing the maximum overlap between the MBHB and the glitch:  max_matching_glitch_MBHB.py
+
+
+
