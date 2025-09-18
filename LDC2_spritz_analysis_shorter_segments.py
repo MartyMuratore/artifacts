@@ -1,61 +1,60 @@
 # Glitch search pipeline to analyze the Light Spritz data set
 
-### import python packages
+### import python packages packages
 
 import numpy as np
 import os
 import matplotlib.pyplot as plt
 import corner
-import cupy as cp
-import numpy as np
+
 from chainconsumer import ChainConsumer
+
+### import cupy
+
+import cupy as cp
+
+### import packages for signal processing and covariance matrices computations
+
 import scipy.stats as stats
+import scipy.signal
+import scipy.signal as signal
+from scipy.signal import butter, filtfilt, freqz
 from scipy.stats import multivariate_normal
 from scipy.stats import norm
 from scipy import interpolate
+
 from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
 
-import scipy.signal
-import scipy.stats
-import matplotlib.pyplot as plt
-import numpy as np
-import scipy.signal as signal
-import matplotlib.pyplot as plt
-
-from scipy.signal import butter, filtfilt, freqz
-from eryn.state import BranchSupplemental
-
+### import Eryn 
 
 from eryn.ensemble import EnsembleSampler
 from eryn.state import State, BranchSupplemental
 from eryn.prior import ProbDistContainer, uniform_dist
-from lisatools.Gaussian_prior import gaussian_dist
 from eryn.utils import TransformContainer, SearchConvergeStopping, Stopping
 from eryn.backends import HDFBackend
-
 from eryn.moves import GaussianMove, StretchMove, GroupStretchMove , GroupMove, ReversibleJumpMove,DistributionGenerateRJ,MTDistGenMoveRJ, MTDistGenMove
+
+### import lisatools
+
+from lisatools.Gaussian_prior import gaussian_dist
 from lisatools.sampling.likelihood import Likelihood
 from lisatools.sampling.moves.skymodehop import SkyMove
-
 from lisatools.glitch_shapelet_analytical_waveform import combine_shapelet_link12_frequency_domain, tdi_shapelet_link12_frequency_domain,tdi_shapelet_link12,tdi_glitch_link12
 from lisatools.group_stretch_proposal import MeanGaussianGroupMove as group_stretch
 from lisatools.group_stretch_proposal import SelectedCovarianceGroupMove
 from lisatools.utils.utility import AET
 from lisatools.sensitivity import get_sensitivity
+
+### import BBhx
+
 from bbhx.utils.constants import *
 from bbhx.utils.transform import *
-
 from bbhx.waveformbuild import BBHWaveformFD
 from bbhx.waveforms.phenomhm import PhenomHMAmpPhase
 from bbhx.response.fastfdresponse import LISATDIResponse
 
-from synthetic_noise_generator import get_sinthetic_noise, get_sinthetic_psd
 
-from compute_fisher import numerical_derivative,   numerical_second_derivative ,  log_like_fisher_logdv_freq_domain
-
-import matplotlib.pyplot as plt
-
-## set the GPU to use
+## This command is needed to set which GPU to use
 
 try:
     import cupy as xp
@@ -67,16 +66,20 @@ except (ImportError, ModuleNotFoundError) as e:
     import numpy as xp
     gpu_available = False
 
-# whether you are using 
+# whether you are using or not
 use_gpu = True
 
 if use_gpu is False:
     xp = np
 
-import corner
-## setting the standard 
+
+### setting number and name of branches
 branch_names = ["glitch","noise"]
+
+### setting the dimensionality of the parameter to fix
 ndims = {"glitch": 3, "noise": 3} 
+
+### setting the Reversible Jump on the glitches allowing between 1 and 0 glitches
 nleaves_max = {"glitch": 1, "noise": 1} 
 nleaves_min = {"glitch": 0, "noise": 1} 
 
