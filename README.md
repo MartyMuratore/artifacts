@@ -13,6 +13,8 @@ To proceed we suggest to create a virtual environment and install all the necess
 
 '' conda create -n "test_env" ''
 
+Important: for now install BBHx, lisatools and Eryn accordingly to requirement.txt
+
 The use of GPU is also encouraged. 
 
 There are different notebook present in the folder:
