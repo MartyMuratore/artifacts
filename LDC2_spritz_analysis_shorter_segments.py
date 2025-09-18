@@ -57,26 +57,6 @@ from bbhx.response.fastfdresponse import LISATDIResponse
 
 ## This command is needed to set which GPU to use
 
-def set_figsize(column='single', ratio=None, scale=1):
-    """Return figure size in inches for single or double column width"""
-    golden_ratio = (5**0.5 - 1) / 2  # ~0.618
-    if ratio is None:
-        ratio = golden_ratio
-    
-    widths = {
-        'single': 3.375,
-        'double': 6.875
-    }
-    width = scale * widths[column]
-    height = width * ratio
-    return (width, height)
-
-    # Load base style
-
-
-
-plt.style.use('revtex_base.mplstyle')
-
 try:
     import cupy as xp
     # set GPU device
@@ -92,7 +72,6 @@ use_gpu = True
 
 if use_gpu is False:
     xp = np
-
 
 ### setting number and name of branches
 branch_names = ["glitch","noise"]
