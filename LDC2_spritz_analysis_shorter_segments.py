@@ -83,22 +83,32 @@ ndims = {"glitch": 3, "noise": 3}
 nleaves_max = {"glitch": 1, "noise": 1} 
 nleaves_min = {"glitch": 0, "noise": 1} 
 
-## general settings 
+### setting the number of walkers to use and the number of temperatures 
 
-plots = False
 nwalkers = 25
 ntemps = 10
 Tmax = np.inf
-tempering_kwargs=dict(ntemps=ntemps,Tmax=Tmax)
+tempering_kwargs=dict(ntemps=ntemps,Tmax=Tmax) # here the maximum temperature is the to infinite so that we ensure sampling the priors ( see https://arxiv.org/abs/2303.02164 )
 
-## defining the likelihood
+
+### defining the log-likelihood the input of the function are:
+### 1) a 2D vector with the number of parameters to fit
+### 2) the Spritz data
+### 3) the sampling frequency
+### 4) the frequency to which the likelihood needs to be evaluated
+### 5) the value of the filter to be applied to the likelihood to avoid likage
+
 
 def log_like_fn(x_param, groups, data, df, freqs, filter_tf):   
- 
+
     glitch_params_all, beta_params_all =  x_param
 
-    group_glitch, group_beta  = groups
+    group_glitch, group_beta  = groups ## this group function is needed for the Reversible jump, it is important to keep the same order of the vector of the parameter in imput
 
+    #  ------------------------- #
+    ## this loop is needed because we only do reversible jump on the glitches and not on the noise parameters, therfore this avoid the likelihood to output a vector of null components in case the
+    ## zero glitch hypothesis is favoured
+    
     ngroups = int(group_beta.max()) + 1
 
     group_glitch_dict = {}
@@ -111,6 +121,8 @@ def log_like_fn(x_param, groups, data, df, freqs, filter_tf):
             group_glitch_dict[i] = xp.zeros((1, 3))
    
     logl_all = []
+
+    #  ------------------------- #
     
     for group in range(ngroups):  
         
@@ -118,14 +130,31 @@ def log_like_fn(x_param, groups, data, df, freqs, filter_tf):
 
         beta_params = beta_params_all[group]
 
-        ## templeate for noise PSD
-        psd_estimated = noise_models_spritz(freqs, isi_rfi_back_oms_noise_level =beta_params[0],   tmi_oms_back_level =beta_params[1],acc_level =beta_params[2], T = 8.322688660167833)
-        tot_psd =  xp.asarray([psd_estimated* np.abs(filter_tf)**4,  psd_estimated* np.abs(filter_tf)**4]) ## to account for the filter
+        #-------- power spectral density estimation ---- #
 
-        ## templeate for glitches 
+        ## here we estimate the PSD for second generation TDI from the parametrized noise model with three amplitude parameters
+        
+        psd_estimated = noise_models_spritz(freqs, isi_rfi_back_oms_noise_level =beta_params[0],   tmi_oms_back_level =beta_params[1],acc_level =beta_params[2], T = 8.322688660167833)
+
+        ## we need to apply the filter value to the PSD 
+        tot_psd =  xp.asarray([psd_estimated* np.abs(filter_tf)**4,  psd_estimated* np.abs(filter_tf)**4])
+        
+
+        ## ------ we estimate here the shapelet tampleate for second generation TDI --------- #
+
+        ### we compute X,Y,Z
+        
         templateXYZ = combine_shapelet_link12_frequency_domain(freqs,shapelet_params,T = 8.322688660167833, tdi_channel='second_gen').squeeze()
+
+        ### we compute A,E,T
+        
         A, E, T = AET(templateXYZ[0], templateXYZ[1], templateXYZ[2]) ## to account for the filter
-        fft_template = xp.asarray([A* np.abs(filter_tf)**2, E* np.abs(filter_tf)**2]) # 
+        
+        fft_template = xp.asarray([A* np.abs(filter_tf)**2, E* np.abs(filter_tf)**2]) 
+        
+
+        ## in case you want to see the templeate of the signal versus the data 
+        plots = False
         if plots==True:
             plt.figure()
             plt.loglog(freqs,np.abs(fft_template.get()[0]),'k',label ='templeate')
@@ -138,7 +167,8 @@ def log_like_fn(x_param, groups, data, df, freqs, filter_tf):
      
         xp.get_default_memory_pool().free_all_blocks()
 
-        ## I compute the log likelihood here 
+        ## ------ Evaluation of the log-likelihood  ---------- ##
+        
         logl = -1/2 * (4*df* xp.sum((xp.conj(data-fft_template) *(data - fft_template)).real /(tot_psd ), axis=0).sum() )
         logl += -  xp.sum(xp.log(tot_psd), axis=0).sum()
         logl = logl[np.newaxis]
