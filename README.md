@@ -9,7 +9,7 @@ There are some dependences that are needed in order to run the codes provided.
 
 In particular to run the analysis of the Spritz pipeline Eryn, lisanalysis tool and BBhx which can be found in https://github.com/mikekatz04. Python is also a requirement. To proceed we suggest to create a virtual environment and install all the necessary dependences.
 
-''' conda create -n "test_env" '''
+'' conda create -n "test_env" ''
 
 The use of GPU is also encouraged. 
 
