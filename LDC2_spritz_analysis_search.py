@@ -86,6 +86,7 @@ nleaves_min = {"glitch": 0, "noise": 1}
 ### setting the number of walkers to use and the number of temperatures 
 
 nwalkers = 25
+nfriends = nwalkers
 ntemps = 10
 Tmax = np.inf
 tempering_kwargs=dict(ntemps=ntemps,Tmax=Tmax) # here the maximum temperature is the to infinite so that we ensure sampling the priors ( see https://arxiv.org/abs/2303.02164 )
@@ -552,7 +553,7 @@ if __name__ == "__main__":
 
     # Defining the covariance matrix for the gaussian move in the in model move for glitches  
     
-    nfriends = nwalkers
+  
 
     gibbs = []
     for i in range(nleaves_max["glitch"]):
@@ -858,7 +859,7 @@ ensemble = EnsembleSampler(
         ndims,  # dimension of the problem 
         log_like_fn, # likelihood function
         priors, 
-        args=[fft_data_cutted ,  df,freqs_cut,h]  # data , sampling frequency, frequencies used, filter
+        args=[fft_data_cutted ,  df,freqs_cut,h] ,  # data , sampling frequency, frequencies used, filter
         tempering_kwargs=tempering_kwargs, 
         moves=moves , # set to true if RJ is used
         rj_moves=True, # set to true if RJ is used
