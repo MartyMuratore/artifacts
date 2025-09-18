@@ -18,6 +18,7 @@ import cupy as cp
 import scipy.stats as stats
 import scipy.signal
 import scipy.signal as signal
+from scipy.signal import welch
 from scipy.signal import butter, filtfilt, freqz
 from scipy.stats import multivariate_normal
 from scipy.stats import norm
@@ -55,6 +56,26 @@ from bbhx.response.fastfdresponse import LISATDIResponse
 
 
 ## This command is needed to set which GPU to use
+
+def set_figsize(column='single', ratio=None, scale=1):
+    """Return figure size in inches for single or double column width"""
+    golden_ratio = (5**0.5 - 1) / 2  # ~0.618
+    if ratio is None:
+        ratio = golden_ratio
+    
+    widths = {
+        'single': 3.375,
+        'double': 6.875
+    }
+    width = scale * widths[column]
+    height = width * ratio
+    return (width, height)
+
+    # Load base style
+
+
+
+plt.style.use('revtex_base.mplstyle')
 
 try:
     import cupy as xp
@@ -213,7 +234,7 @@ beta = -0.30300442294174235  # ecliptic latitude
 lam =   1.2925183861048521 # ecliptic longitude
 psi = np.pi/6 # polarization angle
 t_ref = 2627744.9218792617
-c = 299792458.0
+
 
 wave_gen = BBHWaveformFD(
     amp_phase_kwargs=dict(run_phenomd=False),
@@ -426,6 +447,7 @@ def noise_models_spritz(f,  isi_rfi_back_oms_noise_level = np.sqrt( (6.35e-12)**
 
     # conversion factors into ffd units used in LDC
     lamb = 1064.5e-9
+    c = 299792458.0
     nu0 = c / lamb
     # conversion: divide by lambda to get cycles, take a derivative to get frequency in Hz, divide by nu0 to get ffd
     disp_2_ffd = (2 * np.pi * f / lamb / nu0)**2
@@ -463,20 +485,20 @@ def noise_models_spritz(f,  isi_rfi_back_oms_noise_level = np.sqrt( (6.35e-12)**
     return total_noise_AA
 
 
-## --------- Compute the unfiltered noise PSD ---------- ##
+## --------- Reducing the analyzed frequencies ---------- ##
 
 df = freqs[1] - freqs[0]  # 1 / (dt * len(t_in))
 
 fmin = 2e-5
 fmax = 2e-2
-frequencymask = (freqs > fmin) & (freqs < fmax) # remove ALL the wiggles CAREFULL: we MUST find a way to include them
+frequencymask = (freqs > fmin) & (freqs < fmax) # remove ALL the wiggles CAREFULL
 
 freqs_cut =  np.array(freqs[frequencymask])
 
 ## --------------------------  Get the filter's frequency response -------------  ##
 _, h = freqz(b, a, worN=len(freqs), fs=1/dt)
 
-## ------------- Apply the filter in the frequency domain  ------------ ##
+## ------------- Apply the filter in the frequency domain to the unfiltered noise PSD ------------ ##
 
 Sa_unfiltered = noise_models_spritz(freqs) 
 Se_unfiltered =  noise_models_spritz(freqs)  
@@ -486,20 +508,17 @@ Se_filtered = Se_unfiltered * np.abs(h)**4  # Squared magnitude of the filter re
 
 h = h[frequencymask]
 
-fft_data_cutted = xp.array([fft_data_AE[0,:][frequencymask],fft_data_AE[1,:][frequencymask] ])
+fft_data_cutted = xp.array([fft_data_AE[0,:][frequencymask],fft_data_AE[1,:][frequencymask] ]) ## these are the final data used for the analysis
 
 ## ------- visualizing the data in frequency and time domain ------ ##
-
-from scipy.signal import welch
 
 freq_welch, psd_data_E = welch(E_data, fs=1/dt, window=('kaiser',15), nperseg=len(E_data)//2, noverlap=50)
 freq_welch, psd_data_A = welch(A_data, fs=1/dt, window=('kaiser',15), nperseg=len(E_data)//2, noverlap=50)
 freq_welch_f, psd_data_A_filtered= welch(A_data_filtered, fs=1/dt, window='boxcar', nperseg=len(A_data_filtered)//2, noverlap=50)
 freq_welch_f, psd_data_E_filtered= welch(E_data_filtered, fs=1/dt, window='boxcar', nperseg=len(E_data_filtered)/2, noverlap=50)
-freq_welch_f, psd_data_E_filtered= welch(E_data_filtered, fs=1/dt, window='boxcar', nperseg=len(E_data_filtered)/2, noverlap=50)
-plt.figure()
-plt.title('TDI A: ')
 
+
+plt.figure()
 plt.loglog(freq_welch_f[1:],np.sqrt( psd_data_A_filtered)[1:],'b',label='psd data A')
 plt.loglog(freq_welch_f[1:],np.sqrt(psd_data_E_filtered)[1:],'y',label='psd data E ')
 plt.loglog(freq_welch[1:],np.sqrt(psd_data_E)[1:],'r',label='psd data welch E')
@@ -507,8 +526,6 @@ plt.loglog(freq_welch[1:],np.sqrt(psd_data_A)[1:],'m',label='psd data welch A')
 plt.loglog(freqs[1:],np.sqrt(Sa_filtered)[1:],'k--',label='model PSD E filtered')
 plt.xlabel('Frequency [Hz]')
 plt.ylabel('Fractional frequency [strain]')
-#plt.ylim([1e-23,1e-20])
-#plt.xlim([2e-5,2e-2])
 plt.legend()
 plt.grid()          
 plt.savefig("spritz_data_psd_vs_model.png")
@@ -521,16 +538,20 @@ if __name__ == "__main__":
     
     #### ------- priors ------- ###
 
-    ## glitch priors
-    priors_in = {
+    priors = {}
+
+    ## ------------- glitches  priors ---------##
+    
+    priors_glitch = {
     0: uniform_dist(time[0],Tobs),  
     1: uniform_dist(-35,-20), 
     2: uniform_dist(1, 1e5)} 
 
-    priors = {}
-    priors["glitch"] = ProbDistContainer(priors_in)
+    
+    priors["glitch"] = ProbDistContainer(priors_glitch)
 
-    ## noise priors
+    ## -------------noise priors----------##
+    
     priors_noise = {
     0: uniform_dist((7e-12),(8e-12)),
     1: uniform_dist((2.5e-12),(3.5e-12)),
@@ -538,10 +559,11 @@ if __name__ == "__main__":
    
     priors['noise'] = ProbDistContainer(priors_noise) 
 
-    # I am now defining the covariance matrix for the gaussian move in the in -model move # 
-    nfriends = nwalkers
+    ## ---------------- moves ------------------ ##
 
-    #### ------- moves ------- ###
+    # Defining the covariance matrix for the gaussian move in the in model move for glitches  
+    
+    nfriends = nwalkers
 
     gibbs = []
     for i in range(nleaves_max["glitch"]):
@@ -552,10 +574,14 @@ if __name__ == "__main__":
    
     gs = group_stretch(nfriends=nfriends,gibbs_sampling_setup=gibbs,  n_iter_update=100) #
     scgm = SelectedCovarianceGroupMove(nfriends=1, gibbs_sampling_setup=gibbs,n_iter_update=100)
+
+    # noise move
         
     factor = 0.00001
     cov = { 
     "noise": np.diag(np.ones(ndims['noise'])) * factor }
+
+    # total moves glitches and noise
  
     moves = [ (gs, 0.5), (scgm, 0.2),(StretchMove(gibbs_sampling_setup ="noise"),0.3),(GaussianMove(cov,gibbs_sampling_setup ="noise"),0.3)] 
     
@@ -567,12 +593,6 @@ if __name__ == "__main__":
             "noise": np.zeros((ntemps, nwalkers, nleaves_max["noise"], ndims["noise"])),
             }
 
-    # make sure to start near the proper setup 
-    inds = {
-            "glitch": np.zeros((ntemps, nwalkers, nleaves_max["glitch"]), dtype=bool),
-            "noise": np.ones((ntemps, nwalkers, nleaves_max["noise"]),  dtype=bool)
-        }
-  
     ### ---------  coordinates for the glitches --------- ###
 
     for nn in range(nleaves_max["glitch"]):
@@ -582,8 +602,14 @@ if __name__ == "__main__":
     coords["noise"] = priors["noise"].rvs(size=(ntemps, nwalkers,nleaves_max["noise"]))
 
 
-    # To shaffle around the inds to be random regarding the inizializations of the walkers (e.g. glitch present in the data)
- 
+    
+    ## ------------ indices to start the reversible jump we need to shaffle the index around to inizializate the glitch-walkers (e.g. glitch present in the data)  ----###
+    inds = {
+            "glitch": np.zeros((ntemps, nwalkers, nleaves_max["glitch"]), dtype=bool),
+            "noise": np.ones((ntemps, nwalkers, nleaves_max["noise"]),  dtype=bool)
+        }
+  
+
     for nwalk in range(nwalkers):
         for temp in range(ntemps): 
             nl = np.random.randint(nleaves_min["glitch"], nleaves_max["glitch"]+1) 
@@ -592,36 +618,39 @@ if __name__ == "__main__":
             np.random.shuffle(inds_tw)
             inds['glitch'][temp,nwalk]=inds_tw
    
-
+ 
 def update_fn(i, res, samp):
         max_it_update=50000
         mem =800
 
-        import matplotlib.pyplot as plt
+
         print('---------------------------------------------')
         print("total it", samp.iteration)
         print("max last loglike",np.max(samp.get_log_like()[-mem:,0]))
         print("min last loglike",np.min(samp.get_log_like()[-mem:,0]))
+    
         for mm in samp.moves:
             print("move accept",mm.acceptance_fraction[0])
             print("rj \n",samp.rj_acceptance_fraction[0] )
             print("swap \n",samp.swap_acceptance_fraction)
+
+
+        ####  ----------- noise posterios plots --------- #######
+    
         noise_sampler= samp.get_chain()["noise"][-mem:,0].reshape(-1,ndims['noise'])
         c = ChainConsumer()
-        #parameter_labels = ['$isi+rfi_OMS$','$tmi$','$TM$','A','alpha','sl1','kn','sl2']
         parameter_labels = ['$isi+rfi_OMS$','$tmi$','$TM$']
         c.add_chain(noise_sampler, parameters=parameter_labels, name='noise', color='#6495ed')
         c.configure(bar_shade=True, tick_font_size=8, label_font_size=12, max_ticks=8, usetex=True, serif=True)
-     #   c.add_marker([ 7.768197989237916e-12, 3.3190962625389463e-12 ,  2.4e-15,3.26651613e-44, 1.18300266e+00, 1.66133512e-04, 7.87882056e-06,
-      #            6.70000000e-04], marker_style="x", marker_size=500, color='#DC143C')
         c.add_marker([ 7.768197989237916e-12, 3.3190962625389463e-12 ,  2.4e-15], marker_style="x", marker_size=500, color='#DC143C')
-
         fig = c.plotter.plot(figsize=(8,8), legend=True)
         plt.savefig("noise_spritz.png", dpi=300)
         plt.close()
 
+        ####  ----------- likelihood plots --------- #######
+
+    
         likelihood = samp.get_log_like()[-mem:, 0,:]
-            
         # Create a plot
         plt.figure(figsize=(10, 6))
         plt.plot(np.arange(len( likelihood )), likelihood )
@@ -632,45 +661,26 @@ def update_fn(i, res, samp):
         plt.show()
         plt.savefig("likelihood_spritz_data_glitch_search.png", dpi=300)
         plt.close()
-  
-        item_samp_glitch_no_nans= samp.get_chain()["glitch"][-mem:,0][~np.isnan(samp.get_chain()["glitch"][-mem:,0])].reshape(-1,3)
 
-        nleaves = samp.get_nleaves()['glitch'][:,0,:].reshape(-1)
 
-        #Count the number of 1s
-        nleaves_with_1 = np.sum(nleaves == 1)
-
-        fraction1leaves = nleaves_with_1/len(nleaves)
-
-        def set_figsize(column='single', ratio=None, scale=1):
-            """Return figure size in inches for single or double column width"""
-            golden_ratio = (5**0.5 - 1) / 2  # ~0.618
-            if ratio is None:
-                ratio = golden_ratio
-            
-            widths = {
-                'single': 3.375,
-                'double': 6.875
-            }
-            width = scale * widths[column]
-            height = width * ratio
-            return (width, height)
-
-            # Load base style
+        ####  ----------- glitch plots --------- #######
 
         
+        item_samp_glitch_no_nans= samp.get_chain()["glitch"][-mem:,0][~np.isnan(samp.get_chain()["glitch"][-mem:,0])].reshape(-1,3)
+        nleaves = samp.get_nleaves()['glitch'][:,0,:].reshape(-1)
+        nleaves_with_1 = np.sum(nleaves == 1)
+        fraction1leaves = nleaves_with_1/len(nleaves)
 
-        plt.style.use('revtex_base.mplstyle')
+        # check if there are glitches in the data if ther are compute the glitch SNR 
 
         if fraction1leaves>0.01:
 
             snr_posterior = []
-
             n_iter = 3000
-
             n_samples_glitch = item_samp_glitch_no_nans.shape[0]
             n_samples_noise = noise_sampler.shape[0]
             min_samples=np.min([n_samples_glitch,n_samples_noise])
+            
             for _ in range(n_iter):
                 # Pick a single common random index
                 idx = np.random.choice(min_samples, size=1, replace=False)[0]
