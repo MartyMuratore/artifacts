@@ -111,6 +111,16 @@ ntemps = 10
 Tmax = np.inf
 tempering_kwargs=dict(ntemps=ntemps,Tmax=Tmax) # here the maximum temperature is the to infinite so that we ensure sampling the priors ( see https://arxiv.org/abs/2303.02164 )
 
+##  setup branch supplemental for glitches to carry group stretch information
+closest_inds = -np.ones((ntemps, nwalkers, nleaves_max["glitch"], nfriends), dtype=int)
+closest_inds_cov = -np.ones((ntemps, nwalkers, nleaves_max["glitch"]), dtype=int)
+
+branch_supps = {
+    "glitch": BranchSupplemental(
+        {"inds_closest": closest_inds, "inds_closest_cov": closest_inds_cov}, base_shape=(ntemps, nwalkers, nleaves_max["glitch"])
+    ),
+    "mbh": None
+}
 
 ### defining the log-likelihood the input of the function are:
 ### 1) a 2D vector with the number of parameters to fit
@@ -671,10 +681,13 @@ def update_fn(i, res, samp):
         nleaves_with_1 = np.sum(nleaves == 1)
         fraction1leaves = nleaves_with_1/len(nleaves)
 
-        # check if there are glitches in the data if ther are compute the glitch SNR 
+        # check if there are glitches in the data if ther are compute the glitch SNR
+        # we do a loop to randomply extract samples from glitch and noise posteriors and compute the
+        # SNR from such distrubutions
+    
 
         if fraction1leaves>0.01:
-
+            
             snr_posterior = []
             n_iter = 3000
             n_samples_glitch = item_samp_glitch_no_nans.shape[0]
@@ -732,7 +745,7 @@ def update_fn(i, res, samp):
 
             print("Mean estimated SNR:", np.mean(snr_posterior))
 
-
+            ## estimation of th PSD
             plot_psd = True
             if plot_psd == True:
                 plt.figure(figsize=set_figsize('single', ratio =0.8))
@@ -754,20 +767,20 @@ def update_fn(i, res, samp):
                 plt.close()
           
         if (samp.iteration<max_it_update):
-    
+            ## -------- update the glitch move in case glitch are present  ------##
+            ## --------- compute glitch posteriors ------ ##
             if fraction1leaves>0.6:
                 ('printing glitch updates')
+                
                 c = ChainConsumer()
                 parameter_labels = ['$t0$', '$ln(DV)$', '$\\tau$']
                 c.add_chain(item_samp_glitch_no_nans, parameters=parameter_labels , name='glitches', color='#6495ed')
-                
                 c.configure(bar_shade=True, tick_font_size=8, label_font_size=12, max_ticks=8, usetex=True, serif=True)
                 fig = c.plotter.plot(figsize=(8,8), legend=True)
                 plt.savefig("shapelet_corner_plot_spritz_glitch_search.png", dpi=300)
                 plt.close()
    
                 gmm_glitch = GaussianMixture(n_components=nleaves_max['glitch'],covariance_type='full', tol=0.00001, reg_covar=1e-20)
-
                 gmm_glitch.fit(item_samp_glitch_no_nans)
 
                 #### compute glitch covariance matrix ###
@@ -787,36 +800,28 @@ def update_fn(i, res, samp):
             mem = int(samp.iteration*0.9)
 
             if fraction1leaves>0.6:
+
+                ### ----- glitch update of move ##
                                     
-                bay_gmm = BayesianGaussianMixture(n_components=nleaves_max['glitch'], n_init=10)
+                gmm_glitch = GaussianMixture(n_components=nleaves_max['glitch'],covariance_type='full', tol=0.00001, reg_covar=1e-20)
 
-                bay_gmm.fit(item_samp_glitch_no_nans[-mem:, 0][:,None])  
-                
-                bay_gmm_weights = bay_gmm.weights_
-                n_clusters_ = (np.round(bay_gmm_weights, 2) > 0).sum()
-                
-                print('Estimated number of clusters: ' + str(n_clusters_))
+                gmm_glitch.fit(item_samp_glitch_no_nans) 
 
-                ### now in based at the estimated cluster i compute the covariance ##
-
-                gmm_glitch = GaussianMixture(n_components=n_clusters_,covariance_type='full', tol=0.00001, reg_covar=1e-20)
-
-                gmm_glitch.fit(item_samp_glitch_no_nans)
+                ### compute glitch covariance matrix ###
+            
+                for move in samp.moves:
+                    if hasattr(move, "name") and move.name == "selected covariance":
+                        move.update_mean_cov(res.branches, gmm_glitch.means_,  gmm_glitch.covariances_)
 
                 c = ChainConsumer()
                 parameter_labels = ['$t0$', '$ln(DV)$', '$\\tau$']
                 c.add_chain(item_samp_glitch_no_nans, parameters=parameter_labels , name='glitches', color='#6495ed')
-                
                 c.configure(bar_shade=True, tick_font_size=8, label_font_size=12, max_ticks=8, usetex=True, serif=True)
                 fig = c.plotter.plot(figsize=(8,8), legend=True)
                 plt.savefig("shapelet_corner_plot_spritz_glitch_search.png", dpi=300)
                 plt.close()
-
-                for move in samp.moves:
-
-                    if hasattr(move, "name") and move.name == "selected covariance":
-                        move.update_mean_cov(res.branches, gmm_glitch.means_,  gmm_glitch.covariances_)
-
+                
+            ### ----- noise update of move ##
             gmm_noise = GaussianMixture(n_components=1,covariance_type='full', tol=0.001, reg_covar=1e-50)
             gmm_noise.fit(noise_sampler)
             covariances_noise = gmm_noise.covariances_
@@ -829,7 +834,7 @@ def update_fn(i, res, samp):
         return False
 
             
-    
+## stop function in case no glitch is found
 def stop_fn(i, res, samp):
 
     nleaves = samp.get_nleaves()['glitch'][:,0,:].reshape(-1)
@@ -853,42 +858,41 @@ def stop_fn(i, res, samp):
     else:
         return False            
 
-#fp =  "analazing_spritz_data_glitch28.h5" # "analazing_spritz_data_glitch29_only_mbh.h5" # "analazing_spritz_data_glitch23.h5" # "analazing_spritz_data_glitch6.h5"
-
-fp = 're-analazing_spritz_data_glitch21.h5' #"re-analazing_spritz_data_glitch7_less_strongerfilt.h5" "re-analazing_spritz_data_glitch29SNR.h5"
+fp = 'search_glitch_segment_number.h5'
 
 
+## this function is called in case we want to run start the running from the last state
 if fp in os.listdir():
     print('try to get last sample')
     last_state =  HDFBackend(fp).get_last_sample()
     new_coords = last_state.branches_coords.copy()
     print('backhand')
-    # make sure that there are not nans
+    # make sure that there are not nans in the seleced glitches
     for el in branch_names:
         inds[el]  = last_state.branches_inds[el]
         new_coords[el][~inds[el]] = coords[el][~inds[el]]
         coords[el] = new_coords[el].copy()
 
-
+## this is the fuction for calling the ensamble
 ensemble = EnsembleSampler(
-        nwalkers,
-        ndims,
-        log_like_fn,
-        priors,
-        args=[fft_data_cutted ,  df,freqs_cut,h] ,#[wave_gen, bbh_kwargs, transform_fn, fft_data_cutted , psd, df,freqs_cut,time, dt],
-        tempering_kwargs=tempering_kwargs,
-        moves=moves ,
-        rj_moves=True,
-        provide_groups=True,
+        nwalkers,  # number of walkers defined 
+        ndims,  # dimension of the problem 
+        log_like_fn, # likelihood function
+        priors, 
+        args=[fft_data_cutted ,  df,freqs_cut,h]  # data , sampling frequency, frequencies used, filter
+        tempering_kwargs=tempering_kwargs, 
+        moves=moves , # set to true if RJ is used
+        rj_moves=True, # set to true if RJ is used
+        provide_groups=True, # set to true if RJ is used
         nleaves_max=nleaves_max,
         nleaves_min=nleaves_min,
         branch_names=branch_names,
-        update_iterations=1,
-        update_fn=update_fn,
-        #stopping_fn=stop_fn,
+        update_iterations=1, # to use the update function
+        update_fn=update_fn,  # to use the update function
+        #stopping_fn=stop_fn,  # to use the stopping function
         stopping_iterations=1,
-        nbranches=2,
-        vectorize=True,
+        nbranches=2, 
+        vectorize=True, # vectorized likelihood
         backend=(fp))
 
 
@@ -899,24 +903,9 @@ burn=0
 
 print('start')
 
-
 log_prior = ensemble.compute_log_prior(coords, inds=inds)
-
 log_like = ensemble.compute_log_like(coords, inds=inds, logp=log_prior)[0]
-
-## setup branch supplemental to carry group stretch information
-closest_inds = -np.ones((ntemps, nwalkers, nleaves_max["glitch"], nfriends), dtype=int)
-closest_inds_cov = -np.ones((ntemps, nwalkers, nleaves_max["glitch"]), dtype=int)
-
-branch_supps = {
-    "glitch": BranchSupplemental(
-        {"inds_closest": closest_inds, "inds_closest_cov": closest_inds_cov}, base_shape=(ntemps, nwalkers, nleaves_max["glitch"])
-    ),
-    "mbh": None
-}
-
 start_state = State(coords, inds=inds , log_like=log_like, log_prior=log_prior, branch_supplemental=branch_supps)
-
 out = ensemble.run_mcmc(start_state, nsteps, burn=burn, progress=True, thin_by=thin_by)
 
 
