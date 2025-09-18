@@ -54,6 +54,25 @@ from bbhx.waveformbuild import BBHWaveformFD
 from bbhx.waveforms.phenomhm import PhenomHMAmpPhase
 from bbhx.response.fastfdresponse import LISATDIResponse
 
+def set_figsize(column='single', ratio=None, scale=1):
+    """Return figure size in inches for single or double column width"""
+    golden_ratio = (5**0.5 - 1) / 2  # ~0.618
+    if ratio is None:
+        ratio = golden_ratio
+    
+    widths = {
+        'single': 3.375,
+        'double': 6.875
+    }
+    width = scale * widths[column]
+    height = width * ratio
+    return (width, height)
+
+# Load base style
+
+import matplotlib.pyplot as plt
+plt.style.use('revtex_base.mplstyle')
+
 
 ## This command is needed to set which GPU to use
 
