@@ -189,44 +189,46 @@ with h5py.File('LDC2_Spritz_noise_and_glitches.h5', 'r') as f:
     data = f['time_series'][:]
     
     # Split the data into time and TDI channel X
-    time = data[500:, 0] - data[500:, 0][0] # First column (time)
+    time = data[500:, 0] - data[500:, 0][0] # First column (time) #NB I am shifting the time to start at 0
     data_tdi_X = -data[500:, 1]  # Second column (TDI channel X)
-    data_tdi_Y = -data[500:, 2]  # Third column (TDI channel X)
-    data_tdi_Z = -data[500:, 3]  # Forth column (TDI channel X)
+    data_tdi_Y = -data[500:, 2]  # Third column (TDI channel Y)
+    data_tdi_Z = -data[500:, 3]  # Forth column (TDI channel Z)
 
 dt = time[1]-time[0]
+freqs = np.fft.rfftfreq(len(time), dt)  # fs =1/dt
 
-#  ----- Creating our own the MBHBs data -------- #
+#  ----- Generating the MBHBs from https://mikekatz04.github.io/BBHx/html/bbhx_tutorial.html-------- #
 
 f_ref = 0.0 # let phenom codes set f_ref -> fmax = max(f^2A(f))
 phi_ref = 1.2 # phase at f_ref
 m1 = 1323277.47932  #/(1 + 1.73941)
 m2 =  612485.50602999  #/(1 + 1.73941)
-M = (m1 + m2)
+M = (m1 + m2) 
 q = m2 / m1  # m2 less than m1 
-a1 = 0.747377
-a2 =  0.8388  # a1 >a2
-dist = 36.90249521628649 
-inc = np.pi/3
+a1 = 0.747377 # spin 1
+a2 =  0.8388   # spin 2
+dist = 36.90249521628649 # luminosity distance
+inc = np.pi/3 #inclination
 beta = -0.30300442294174235  # ecliptic latitude
 lam =   1.2925183861048521 # ecliptic longitude
 psi = np.pi/6 # polarization angle
 t_ref = 2627744.9218792617
+c = 299792458.0
 
-# wave generating class
 wave_gen = BBHWaveformFD(
     amp_phase_kwargs=dict(run_phenomd=False),
     response_kwargs=dict(TDItag="AET"),   
     use_gpu=use_gpu)
 
-# for transforms
-fill_dict = {
-    "ndim_full": 12,
- #  "fill_values": np.array([np.log(M),q,a1,a2,0.0]),
+fill_dict = {"ndim_full": 12,
+    "fill_values": np.array([0.0]),
+    "fill_inds": np.array([6]),}
+
+
+ #  "fill_values": np.array([np.log(M),q,a1,a2,0.0]), # 
  #   "fill_inds": np.array([0,1,2,3,6]),
-       "fill_values": np.array([0.0]),
-    "fill_inds": np.array([6]),
-}
+
+## these are the parameters to estimate
 
 mbh_injection_params = np.array([
     M, 
@@ -239,17 +241,14 @@ mbh_injection_params = np.array([
     lam,
     beta,
     psi,
-    t_ref,
-]) 
+    t_ref,]) 
 
-
-# get the right parameters
 mbh_injection_params[0] = np.log(mbh_injection_params[0])  # Takes the logarithm of the mass of the primary black hole.
 mbh_injection_params[6] = np.cos(mbh_injection_params[6])  # Takes the cosine of the inclination angle.
 mbh_injection_params[8] = np.sin(mbh_injection_params[8])  # Takes the sine of the ecliptic latitude 
 
 
-# transforms from pe to waveform generation
+# transforms from PE to waveform generation
 parameter_transforms = {
     0: np.exp,
     4: lambda x: x * PC_SI * 1e9,  # Gpc  
@@ -259,7 +258,6 @@ parameter_transforms = {
     (11, 8, 9, 10): LISA_to_SSB,
 }
 
-
 transform_fn = TransformContainer(
     parameter_transforms=parameter_transforms,
     fill_dict=fill_dict,
@@ -268,25 +266,20 @@ transform_fn = TransformContainer(
 # sampler treats periodic variables by wrapping them properly
 periodic = { "mbh": {5: 2 * np.pi, 7: np.pi, 8: np.pi}}
 
-
-### ---------  choose the frequency range --------- ###
-
-freqs = np.fft.rfftfreq(len(time), dt)  # fs =1/dt
-
-# creating the waveform ##
+# -------- creating the waveform -------- ##
 
 bbh_kwargs = dict(freqs=xp.asarray(freqs), direct=False, fill=True, squeeze=True, length=1024)
 
 injection_in = transform_fn.both_transforms(mbh_injection_params[None, :], return_transpose=True)
 
-# frequency domain 
+### frequency domain data ###
 
 data_mbh_AET = wave_gen(*injection_in, **bbh_kwargs)[0]
 
-# time domain 
+###  time domain data in TDI A,E,T ###
 data_channels_AET_TD = np.fft.irfft(data_mbh_AET,axis=-1).squeeze()
 
-##  --- time domain data to use for the analysis ------  ##
+##  --------------  time domain data to use for the analysis summing the MBHB and the light-Spritz --------------  ##
 
 A_data,E_data, T_data = AET(data_tdi_X, data_tdi_Y, data_tdi_Z)
 
@@ -294,7 +287,8 @@ A_data_tot = A_data + data_channels_AET_TD.get()[0]
 E_data_tot = E_data + data_channels_AET_TD.get()[1]
 T_data_tot = T_data + data_channels_AET_TD.get()[2]
 
-# ------------- PLOTS ----------#
+
+# ---------------------- PLOTS --------------------#
 plt.figure()
 plt.title('TDI A:  one black hole binaries in noisy data')
 plt.plot(time,data_channels_AET_TD.get()[0], label="glitch ,  noise and GW  A", alpha=0.9)
@@ -355,82 +349,66 @@ samples_per_block = block_duration * sampling_rate
 total_duration = end_time - start_time
 total_blocks = int(total_duration // block_duration)
 
-## pick the number of segment of interest
-nn =21
+## -------------- pick the number of segment of interest considering that there are a total of 29 segments and take the appropriate index -----##
 
+nn =21
 block_start_time = start_time + nn * block_duration
 block_end_time = block_start_time + block_duration
 
-# Adjust for overlap
-overlap = block_duration * 0.2  # 20% of block duration
+## allowing an overlap among block of 20%
+
+overlap = block_duration * 0.2  
 block_start_time -= overlap  # Extend the block start earlier
 block_end_time += overlap  # Extend the block end later
 
 # Ensure the start and end times are within the dataset bounds
+
 block_start_time = max(block_start_time, start_time)
 block_end_time = min(block_end_time, end_time)
 
 block_start_index = int((block_start_time - start_time) * sampling_rate)
 block_end_index = int((block_end_time - start_time) * sampling_rate)
 
-# Split the data into time and TDI channel X
 start_index = 0
 time = time[block_start_index+start_index :block_end_index]  # First column (time)
+
+## ----------- chunking the time series -----###
 
 A_data= A_data_tot[block_start_index+start_index :block_end_index]  # Second column (TDI channel X)
 E_data = E_data_tot[block_start_index+start_index :block_end_index]  # Third column (TDI channel X)
 T_data = T_data_tot[block_start_index+start_index :block_end_index]  # Forth column (TDI channel X)
 
-# time series 
+### -------------------- Plots --------------- ##
 
 plt.figure()
 plt.title('TDI A: Three glitches and one black hole binaries in noisy data')
 plt.plot(time,A_data, label="glitch ,  noise and GW  A", alpha=0.9)
-#plt.plot(time,estimated_shap[0][block_start_index+start_index :block_end_index], label="estimated glitch ", alpha=1)
 plt.ylabel("TDIs")
-#plt.xlim([5.1*1e5,6.05*1e5])
 ax = plt.gca()
-#ax.axvline(t_ref, color="black", linestyle="-", linewidth=1)
 plt.xlabel("Time [s]")
 plt.grid()
 plt.savefig("time_domain_spritz_data_strech.png", dpi=300)
 plt.legend()
 
-## -----------  applied filter to the data --------   ##
+## -----------  applied filter to the data to avoid likeage --------   ##
 
-# Define filter parameters
+## Define filter parameters
 sampling_rate = 1/dt  # Hz
 nyquist_freq = sampling_rate / 2
-cutoff_freq = 1e-3  # Hz ok if only noise ## was 1e-2 , I had to use a different one
+cutoff_freq = 1e-3  #
 normalized_cutoff = cutoff_freq / nyquist_freq
 
-# Design a first-order Butterworth filter
+## Design a first-order Butterworth filter
 b, a = butter(N=1, Wn=normalized_cutoff, btype='low', analog=False)
 
-# Example: Apply the filter to your time series data
 A_data_filtered = filtfilt(b, a, A_data)[500:-500]
 E_data_filtered = filtfilt(b, a, E_data)[500:-500]
 
 time = time[500:-500]
 
-# Plot the original and filtered signals
+##  ------------- frequency data to be use for the analysis----------------  ##
 
-plt.figure(figsize=(10, 6))
-plt.plot(time, A_data_filtered,'b',label="Filtered Signal" , linewidth=2)
-plt.xlabel("Time (s)")
-plt.ylabel("Amplitude")
-#plt.xlim([5.6*1e5,6.15*1e5])
-ax = plt.gca()
-#ax.axvline(t_ref, color="black", linestyle="-", linewidth=1)
-plt.title("Time-Domain Signal: Original vs. Filtered")
-plt.savefig("filtered_signal.png")
-plt.legend()
-plt.grid()
-plt.show()
-
-##  ------------- frequency data ----------------  ##
-
-# we need to redefine the frequency axes since we filter the data 
+# Note we only use A and E
 
 freqs = np.fft.rfftfreq(len(A_data_filtered), dt)  # fs =1/dt
 
@@ -442,8 +420,6 @@ fft_data_AE = xp.array([Anfft,Enfft])
 ## ---------------------- noise models ---------------- ##
 
 def noise_models_spritz(f,  isi_rfi_back_oms_noise_level = np.sqrt( (6.35e-12)**2 + (3.32e-12)**2+ (3.0E-12)**2 ),    tmi_oms_back_level = np.sqrt( (1.42e-12)**2 +(3.0E-12)**2 ),  acc_level = 2.4e-15,    T = 8.322688660167833):
-
-    c = 299792458.0
 
     # Common TDI factor for first gen TDI, which can be factorized as (1 - D^2) * X_0, with X_0 being a simple Michelson.
     Cxx = (np.abs(1 - np.exp(-2j*np.pi*f*T)**4)*np.abs(1 - np.exp(-2j*np.pi*f*T)**2))**2
