@@ -36,7 +36,7 @@ There are different notebook present in the folder:
    
 4) the codes used for analysing Spritz data are:
 
-   searches : LDC2_spritz_analysis_shorter_segments.py
+   searches : LDC2_spritz_analysis_search.py
 
    parameter estimation:  LDC2_spritz_analysis_new.py 
 
