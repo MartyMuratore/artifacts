@@ -1,3 +1,4 @@
+search/
 # Glitch search pipeline to analyze the Light Spritz data set
 
 ### import python packages packages
