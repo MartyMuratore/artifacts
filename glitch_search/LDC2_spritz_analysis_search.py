@@ -1,4 +1,4 @@
-glitch_search/LDC2_spritz_analysis_search.py
+
 # Glitch search pipeline to analyze the Light Spritz data set
 
 ### import python packages packages
