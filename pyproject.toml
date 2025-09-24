@@ -9,6 +9,7 @@ dependencies = [
     "corner>=2.2.3",
     "cython<3.0",
     "eryn>=1.1.14",
+    "gbgpu>=1.2.4",
     "gpubackendtools>=0.0.11",
     "h5py>=3.7.0,<3.10",
     "lisaanalysistools>=1.1.8",
