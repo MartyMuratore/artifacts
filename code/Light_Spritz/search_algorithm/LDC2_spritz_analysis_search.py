@@ -16,6 +16,7 @@ import scipy.signal
 from scipy.signal import butter, filtfilt, freqz
 
 from eryn.moves import GaussianMove, StretchMove
+from eryn.utils import TransformContainer, SearchConvergeStopping, Stopping
 from eryn.state import BranchSupplemental
 
 sys.path.append("../..")
@@ -193,13 +194,12 @@ lam =   1.2925183861048521 # ecliptic longitude
 psi = np.pi/6 # polarization angle
 t_ref = 2627744.9218792617
 
-breakpoint()
-
 wave_gen = BBHWaveformFD(
     amp_phase_kwargs=dict(run_phenomd=False),
-    response_kwargs=dict(TDItag="AET"))
-    
+    response_kwargs=dict(TDItag="AET"),
+    force_backend="cpu")
 
+breakpoint()
 fill_dict = {"ndim_full": 12,
     "fill_values": np.array([0.0]),
     "fill_inds": np.array([6]),}
@@ -256,6 +256,7 @@ injection_in = transform_fn.both_transforms(mbh_injection_params[None, :], retur
 
 data_mbh_AET = wave_gen(*injection_in, **bbh_kwargs)[0]
 
+breakpoint()
 ###  time domain data in TDI A,E,T ###
 data_channels_AET_TD = np.fft.irfft(data_mbh_AET,axis=-1).squeeze()
 
