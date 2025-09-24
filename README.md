@@ -60,7 +60,13 @@ https://arxiv.org/pdf/2505.19870
 
 There are some dependences that are needed in order to run the codes provided. 
 
-In particular to run the analysis of the Spritz pipeline Eryn, lisanalysis tool and BBhx which can be found in https://github.com/mikekatz04.
+In particular to run the analysis of the Spritz pipeline Eryn, lisanalysis tool and BBhx which can be found in https://github.com/mikekatz04. Python is also a requirement. To learn how to you use the sampler Eryn please see https://mikekatz04.github.io/Eryn/html/tutorial/Eryn_tutorial.html
+
+To proceed we suggest to create a virtual environment and install all the necessary dependences.
+
+'' conda create -n "test_env" ''
+
+Important: for now install BBHx, lisatools and Eryn accordingly to requirement.txt
 
 The use of GPU is also encouraged. 
 
@@ -83,7 +89,7 @@ There are different notebook present in the folder:
    
 4) the codes used for analysing Spritz data are:
 
-   searches : LDC2_spritz_analysis_shorter_segments.py
+   searches : LDC2_spritz_analysis_search.py
 
    parameter estimation:  LDC2_spritz_analysis_new.py 
 
@@ -91,6 +97,8 @@ There are different notebook present in the folder:
 
    a) to generate synthetic noise (PSD): synthetic_noise_generator.py
    b) the codes for computing the maximum overlap between the MBHB and the glitch:  max_matching_glitch_MBHB.py
+
+
 
 
 

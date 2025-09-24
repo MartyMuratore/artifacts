@@ -1,8 +1,7 @@
+### search pipeline for 
 
-# Glitch search pipeline to analyze the Light Spritz data set
-
-### import python packages packages
-
+from lisatools.sampling.likelihood import Likelihood
+from lisatools.sampling.moves.skymodehop import SkyMove
 
 import numpy as np
 import os
@@ -25,56 +24,18 @@ from sampling_funcs.group_stretch_proposal import MeanGaussianGroupMove as group
 
 from lisatools.utils.utility import AET
 from lisatools.sensitivity import get_sensitivity
-from lisatools.sampling.likelihood import Likelihood
-from lisatools.sampling.moves.skymodehop import SkyMove
 
-import matplotlib.pyplot as plt
-
-from chainconsumer import ChainConsumer
-
-### import cupy
-
-import scipy.signal
-from scipy.signal import welch
-from scipy.signal import butter, filtfilt, freqz
-
-from sklearn.mixture import GaussianMixture
-
-### import Eryn 
-
-from eryn.ensemble import EnsembleSampler
-from eryn.state import State, BranchSupplemental
-from eryn.prior import ProbDistContainer, uniform_dist
-from eryn.utils import TransformContainer
-from eryn.backends import HDFBackend
-from eryn.moves import GaussianMove, StretchMove
-
-### import lisatools
+breakpoint()
 
 from bbhx.utils.constants import *
 from bbhx.utils.transform import *
 from bbhx.waveformbuild import BBHWaveformFD
-
-def set_figsize(column='single', ratio=None, scale=1):
-    """Return figure size in inches for single or double column width"""
-    golden_ratio = (5**0.5 - 1) / 2  # ~0.618
-    if ratio is None:
-        ratio = golden_ratio
-    
-    widths = {
-        'single': 3.375,
-        'double': 6.875
-    }
-    width = scale * widths[column]
-    height = width * ratio
-    return (width, height)
-
-# Load base style
-
-plt.style.use('revtex_base.mplstyle')
+from bbhx.waveforms.phenomhm import PhenomHMAmpPhase
 
 
-## This command is needed to set which GPU to use
+import matplotlib.pyplot as plt
+
+## set the GPU to use
 
 try:
     import cupy as xp
