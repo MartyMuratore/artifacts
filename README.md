@@ -22,7 +22,15 @@ The primary dependencies of this work are
 - Eryn: a package for MCMC ensemble sampling with advanced moves and reversible jump capabilities. It can be found here: https://github.com/mikekatz04/Eryn
 - lisatools: a package with LISA-specific analysis utilities including glitch modeling and sensitivity curves. It can be found here: https://github.com/mikekatz04/lisatools
 
-To install BBHx from source, clone the repository and follow the build instructions in the README. It is important that `lapack` and `pkgconfig` are installed on your system. 
+First, locate the root directory of this project. Make sure that `uv` is installed and working. 
+
+Then, create a new environment for this project by running:
+```code bash
+   uv venv
+   source .venv/bin/activate
+   uv pip install .
+```
+Then you need to install BBHx from source, clone the repository and follow the build instructions in the README. It is important that `lapack` and `pkgconfig` are installed on your system. 
 
 Using brew, I added the following arguments prior to installing BBHx.
 ```code bash
