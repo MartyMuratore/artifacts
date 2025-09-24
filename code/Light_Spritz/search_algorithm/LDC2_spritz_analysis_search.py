@@ -7,7 +7,6 @@ import numpy as np
 import os
 import sys
 import h5py
-sys.path.append("..")
 import matplotlib.pyplot as plt
 from chainconsumer import ChainConsumer
 from sklearn.mixture import GaussianMixture 
@@ -16,24 +15,21 @@ import scipy.signal
 
 from scipy.signal import butter, filtfilt, freqz
 
-
 from eryn.moves import GaussianMove, StretchMove
+from eryn.state import BranchSupplemental
 
-from glitch_code.glitch_shapelet_analytical_waveform import combine_shapelet_link12_frequency_domain, tdi_shapelet_link12_frequency_domain
-from sampling_funcs.group_stretch_proposal import MeanGaussianGroupMove as group_stretch, SelectedCovarianceGroupMove
+sys.path.append("../..")
+from utility_funcs.glitch_code.glitch_shapelet_analytical_waveform import combine_shapelet_link12_frequency_domain, tdi_shapelet_link12_frequency_domain
+from utility_funcs.sampling_funcs.group_stretch_proposal import MeanGaussianGroupMove as group_stretch, SelectedCovarianceGroupMove
 
 from lisatools.utils.utility import AET
 from lisatools.sensitivity import get_sensitivity
 
-breakpoint()
 
 from bbhx.utils.constants import *
 from bbhx.utils.transform import *
 from bbhx.waveformbuild import BBHWaveformFD
 from bbhx.waveforms.phenomhm import PhenomHMAmpPhase
-
-
-import matplotlib.pyplot as plt
 
 ## set the GPU to use
 
