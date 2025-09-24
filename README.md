@@ -1,6 +1,51 @@
+
+
+
+
+
+
+
+
 # Search and Parameter estimation in presence of glitches
 
+## Installation
 
+### using uv as package manager
+In this work we use the package manager `uv` to manage the environment and dependencies.
+
+To install `uv`, please follow the instructions here: https://docs.astral.sh/uv/getting-started/installation/
+
+### Installation using uv
+The primary dependencies of this work are 
+
+- BBHx: a GPU accelerated package for generating binary black hole waveforms and LISA response functions. It can be found here: https://github.com/mikekatz04/BBHx
+- Eryn: a package for MCMC ensemble sampling with advanced moves and reversible jump capabilities. It can be found here: https://github.com/mikekatz04/Eryn
+- lisatools: a package with LISA-specific analysis utilities including glitch modeling and sensitivity curves. It can be found here: https://github.com/mikekatz04/lisatools
+
+To install BBHx from source, clone the repository and follow the build instructions in the README. It is important that `lapack` and `pkgconfig` are installed on your system. 
+
+Using brew, I added the following arguments prior to installing BBHx.
+```code bash
+   brew install lapack gsl pkgconf
+   export LDFLAGS="-L/opt/homebrew/opt/lapack/lib -L/opt/homebrew/opt/gsl/lib" 
+   export CPPFLAGS="-I/opt/homebrew/opt/lapack/include -I/opt/homebrew/opt/gsl/include"
+   export CMAKE_ARGS="-DBBHX_LAPACKE_DETECT_WITH=PKGCONFIG -DBBHX_LAPACKE_FETCH=OFF -DCMAKE_PREFIX_PATH=/opt/homebrew/opt/lapack:/opt/homebrew/opt/gsl" 
+   export PKG_CONFIG_PATH="/opt/homebrew/opt/lapack/lib/pkgconfig:/opt/homebrew/opt/gsl/lib/pkgconfig:$PKG_CONFIG_PATH"
+```
+
+Then, using uv, I located the root directory of `BBHx` and ran the following commands:
+```code bash
+   uv pip install -e .
+````
+
+This will automatically install `lisaanalysistools`. The package `Eryn` can be installed using
+
+```code bash
+   uv add eryn
+```
+
+
+## This repository
 This repository provides codes to re-produce the results of this paper:
 
 https://arxiv.org/pdf/2505.19870

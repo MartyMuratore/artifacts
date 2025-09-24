@@ -1,7 +1,12 @@
 ### search pipeline for 
 
+from lisatools.sampling.likelihood import Likelihood
+from lisatools.sampling.moves.skymodehop import SkyMove
+
 import numpy as np
 import os
+import sys
+sys.path.append("..")
 import matplotlib.pyplot as plt
 # import cupy as cp
 from chainconsumer import ChainConsumer
@@ -17,16 +22,12 @@ from eryn.prior import ProbDistContainer, uniform_dist
 from eryn.utils import TransformContainer
 from eryn.backends import HDFBackend
 
-from eryn.moves import GaussianMove, StretchMove 
+from eryn.moves import GaussianMove, StretchMove
 
 breakpoint()
-# from lisatools.Gaussian_prior import gaussian_dist
-from lisatools.sampling.likelihood import Likelihood
-from lisatools.sampling.moves.skymodehop import SkyMove
+from glitch_code.glitch_shapelet_analytical_waveform import combine_shapelet_link12_frequency_domain, tdi_shapelet_link12_frequency_domain,tdi_shapelet_link12,tdi_glitch_link12
+from sampling_funcs.group_stretch_proposal import MeanGaussianGroupMove as group_stretch, SelectedCovarianceGroupMove
 
-from glitch_shapelet_analytical_waveform import combine_shapelet_link12_frequency_domain, tdi_shapelet_link12_frequency_domain,tdi_shapelet_link12,tdi_glitch_link12
-from group_stretch_proposal import MeanGaussianGroupMove as group_stretch
-from group_stretch_proposal import SelectedCovarianceGroupMove
 from lisatools.utils.utility import AET
 from lisatools.sensitivity import get_sensitivity
 

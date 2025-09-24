@@ -1,0 +1,20 @@
+[project]
+name = "spritz-challenge"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10,<3.11"
+dependencies = [
+    "chainconsumer>=1.2.3",
+    "corner>=2.2.3",
+    "cython<3.0",
+    "eryn>=1.1.14",
+    "gpubackendtools>=0.0.11",
+    "h5py>=3.7.0,<3.10",
+    "lisaanalysistools>=1.1.8",
+    "matplotlib>=3.5.0,<3.8",
+    "numpy>=1.21.0,<1.25",
+    "scikit-learn>=1.0.0,<1.3",
+    "scipy>=1.7.0,<1.11",
+]
+
