@@ -45,7 +45,7 @@ There are different notebook present in the folder:
    a) to generate synthetic noise (PSD): synthetic_noise_generator.py
    b) the codes for computing the maximum overlap between the MBHB and the glitch:  max_matching_glitch_MBHB.py
 
-## Analyzing (Light-)Spritz data 
+
 
 
 
