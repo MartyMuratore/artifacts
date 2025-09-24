@@ -37,25 +37,19 @@ try:
     import cupy as xp
     # set GPU device
     xp.cuda.runtime.setDevice(0)
-    gpu_available = True
+    GPU_AVAILABLE = True
 
 except (ImportError, ModuleNotFoundError) as e:
-    import numpy as xp
-    gpu_available = False
-
-# whether you are using or not
-use_gpu = True
-
-if use_gpu is False:
     xp = np
+    GPU_AVAILABLE = False
 
 branch_names = ["glitch","noise"]
 
 ### setting the dimensionality of the parameter to fix
-ndims = {"glitch": 3, "noise": 3} 
+ndims = {"glitch": 3, "noise": 3}
 
 ### setting the Reversible Jump on the glitches allowing between 1 and 0 glitches
-nleaves_max = {"glitch": 1, "noise": 1} 
+nleaves_max = {"glitch": 1, "noise": 1}
 nleaves_min = {"glitch": 0, "noise": 1} 
 
 ### setting the number of walkers to use and the number of temperatures 
@@ -199,6 +193,7 @@ lam =   1.2925183861048521 # ecliptic longitude
 psi = np.pi/6 # polarization angle
 t_ref = 2627744.9218792617
 
+breakpoint()
 
 wave_gen = BBHWaveformFD(
     amp_phase_kwargs=dict(run_phenomd=False),
