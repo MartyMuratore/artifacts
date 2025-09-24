@@ -10,7 +10,7 @@ from bbhx.utils.transform import *
 try:
     import cupy as xp
     # set GPU device
-    xp.cuda.runtime.setDevice(6)
+    xp.cuda.runtime.setDevice(0)
     gpu_available = True
 
 except (ImportError, ModuleNotFoundError) as e:
