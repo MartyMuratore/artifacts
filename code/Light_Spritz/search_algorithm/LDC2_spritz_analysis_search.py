@@ -169,7 +169,7 @@ def log_like_fn(x_param, groups, data, df, freqs, filter_tf):
 ## -------------------   uploading Spritz data set ------------------ ##
 
 # Open the HDF5 file in read mode
-with h5py.File('LDC2_Spritz_noise_and_glitches.h5', 'r') as f:
+with h5py.File('../data_set/LDC2_Spritz_noise_and_glitches.h5', 'r') as f:
     # Access the dataset named 'time_series'
     data = f['time_series'][:]
     
@@ -202,8 +202,8 @@ t_ref = 2627744.9218792617
 
 wave_gen = BBHWaveformFD(
     amp_phase_kwargs=dict(run_phenomd=False),
-    response_kwargs=dict(TDItag="AET"),   
-    use_gpu=use_gpu)
+    response_kwargs=dict(TDItag="AET"))
+    
 
 fill_dict = {"ndim_full": 12,
     "fill_values": np.array([0.0]),
