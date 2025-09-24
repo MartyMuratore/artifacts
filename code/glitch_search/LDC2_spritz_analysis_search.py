@@ -3,9 +3,6 @@
 
 ### import python packages packages
 
-<<<<<<<< HEAD:code/main/LDC2_spritz_analysis_shorter_segments.py
-from lisatools.sampling.likelihood import Likelihood
-from lisatools.sampling.moves.skymodehop import SkyMove
 
 import numpy as np
 import os
@@ -13,81 +10,51 @@ import sys
 import h5py
 sys.path.append("..")
 import matplotlib.pyplot as plt
-# import cupy as cp
 from chainconsumer import ChainConsumer
-from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
+from sklearn.mixture import GaussianMixture 
 
 import scipy.signal
 
 from scipy.signal import butter, filtfilt, freqz
 
-from eryn.state import State, BranchSupplemental
-from eryn.ensemble import EnsembleSampler
-from eryn.prior import ProbDistContainer, uniform_dist
-from eryn.utils import TransformContainer
-from eryn.backends import HDFBackend
 
 from eryn.moves import GaussianMove, StretchMove
 
-breakpoint()
-from glitch_code.glitch_shapelet_analytical_waveform import combine_shapelet_link12_frequency_domain, tdi_shapelet_link12_frequency_domain,tdi_shapelet_link12,tdi_glitch_link12
+from glitch_code.glitch_shapelet_analytical_waveform import combine_shapelet_link12_frequency_domain, tdi_shapelet_link12_frequency_domain
 from sampling_funcs.group_stretch_proposal import MeanGaussianGroupMove as group_stretch, SelectedCovarianceGroupMove
 
 from lisatools.utils.utility import AET
 from lisatools.sensitivity import get_sensitivity
+from lisatools.sampling.likelihood import Likelihood
+from lisatools.sampling.moves.skymodehop import SkyMove
 
-breakpoint()
-import numpy as np
-import os
 import matplotlib.pyplot as plt
-import corner
 
 from chainconsumer import ChainConsumer
 
 ### import cupy
 
-import cupy as cp
-
-### import packages for signal processing and covariance matrices computations
-
-import scipy.stats as stats
 import scipy.signal
-import scipy.signal as signal
 from scipy.signal import welch
 from scipy.signal import butter, filtfilt, freqz
-from scipy.stats import multivariate_normal
-from scipy.stats import norm
-from scipy import interpolate
 
-from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
+from sklearn.mixture import GaussianMixture
 
 ### import Eryn 
 
 from eryn.ensemble import EnsembleSampler
 from eryn.state import State, BranchSupplemental
 from eryn.prior import ProbDistContainer, uniform_dist
-from eryn.utils import TransformContainer, SearchConvergeStopping, Stopping
+from eryn.utils import TransformContainer
 from eryn.backends import HDFBackend
-from eryn.moves import GaussianMove, StretchMove, GroupStretchMove , GroupMove, ReversibleJumpMove,DistributionGenerateRJ,MTDistGenMoveRJ, MTDistGenMove
+from eryn.moves import GaussianMove, StretchMove
 
 ### import lisatools
-
-from lisatools.Gaussian_prior import gaussian_dist
-from lisatools.sampling.likelihood import Likelihood
-from lisatools.sampling.moves.skymodehop import SkyMove
-from lisatools.glitch_shapelet_analytical_waveform import combine_shapelet_link12_frequency_domain, tdi_shapelet_link12_frequency_domain,tdi_shapelet_link12,tdi_glitch_link12
-from lisatools.group_stretch_proposal import MeanGaussianGroupMove as group_stretch
-from lisatools.group_stretch_proposal import SelectedCovarianceGroupMove
-from lisatools.utils.utility import AET
-from lisatools.sensitivity import get_sensitivity
 
 from bbhx.utils.constants import *
 from bbhx.utils.transform import *
 from bbhx.waveformbuild import BBHWaveformFD
-from bbhx.waveforms.phenomhm import PhenomHMAmpPhase
 
-<<<<<<<< HEAD:code/main/LDC2_spritz_analysis_shorter_segments.py
-========
 def set_figsize(column='single', ratio=None, scale=1):
     """Return figure size in inches for single or double column width"""
     golden_ratio = (5**0.5 - 1) / 2  # ~0.618
@@ -104,7 +71,6 @@ def set_figsize(column='single', ratio=None, scale=1):
 
 # Load base style
 
-import matplotlib.pyplot as plt
 plt.style.use('revtex_base.mplstyle')
 
 
