@@ -6,6 +6,7 @@ from lisatools.sampling.moves.skymodehop import SkyMove
 import numpy as np
 import os
 import sys
+import h5py
 sys.path.append("..")
 import matplotlib.pyplot as plt
 # import cupy as cp
@@ -134,7 +135,6 @@ def log_like_fn(x_param, groups, data, df, freqs, filter_tf):
     return logl_out.get()
 
 ## -------------------   uploading Spritz data set ------------------ ##
-import h5py
 
 # Open the HDF5 file in read mode
 with h5py.File('LDC2_Spritz_noise_and_glitches.h5', 'r') as f:
