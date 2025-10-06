@@ -9,7 +9,7 @@ import sys
 import h5py
 import matplotlib.pyplot as plt
 from chainconsumer import ChainConsumer
-from sklearn.mixture import GaussianMixture 
+from sklearn.mixture import GaussianMixture
 
 import scipy.signal
 
@@ -33,16 +33,18 @@ from bbhx.waveformbuild import BBHWaveformFD
 from bbhx.waveforms.phenomhm import PhenomHMAmpPhase
 
 ## set the GPU to use
-
-try:
+GPU_AVAILABLE = True
+if GPU_AVAILABLE:
     import cupy as xp
     # set GPU device
     xp.cuda.runtime.setDevice(0)
     GPU_AVAILABLE = True
-
-except (ImportError, ModuleNotFoundError) as e:
+else:
     xp = np
-    GPU_AVAILABLE = False
+
+# except (ImportError, ModuleNotFoundError) as e:
+#     xp = np
+#     GPU_AVAILABLE = False
 
 branch_names = ["glitch","noise"]
 
@@ -194,12 +196,15 @@ lam =   1.2925183861048521 # ecliptic longitude
 psi = np.pi/6 # polarization angle
 t_ref = 2627744.9218792617
 
+if GPU_AVAILABLE:   
+    force_backend = "cuda12x"
+else:
+    force_backend = "cpu"
 wave_gen = BBHWaveformFD(
     amp_phase_kwargs=dict(run_phenomd=False),
     response_kwargs=dict(TDItag="AET"),
-    force_backend="cpu")
+    force_backend=force_backend)
 
-breakpoint()
 fill_dict = {"ndim_full": 12,
     "fill_values": np.array([0.0]),
     "fill_inds": np.array([6]),}
@@ -256,7 +261,6 @@ injection_in = transform_fn.both_transforms(mbh_injection_params[None, :], retur
 
 data_mbh_AET = wave_gen(*injection_in, **bbh_kwargs)[0]
 
-breakpoint()
 ###  time domain data in TDI A,E,T ###
 data_channels_AET_TD = np.fft.irfft(data_mbh_AET,axis=-1).squeeze()
 
