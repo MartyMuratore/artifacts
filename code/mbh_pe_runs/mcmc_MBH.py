@@ -21,20 +21,19 @@ from eryn.backends import HDFBackend
 
 
 # ================ SETTINGS PRIOR TO SIMULATION =============
-PLOT_WAVEFORM =False    # Whether we decide to plot waveform and noise
+PLOT_WAVEFORM =True # Whether we decide to plot waveform and noise
 GPU_DIRECTORY = False
 OLLIE_DIRECTORY = True
-NO_MASK = False
-CHECK_SNR = False
+NO_MASK = True
+CHECK_SNR = True
 MASK = False
-WINDOW = True
+WINDOW = False
 
 if OLLIE_DIRECTORY:
     noise_direc = "/Users/ollie.burke/Documents/Work/Code/spritz_challenge/code/mbh_pe_runs/" 
     mcmc_direc = "/Users/ollie.burke/Documents/Work/Code/spritz_challenge/code/mbh_pe_runs/data_mcmc_simulations/"
     fisher_direc = "/Users/ollie.burke/Documents/Work/Code/spritz_challenge/code/mbh_pe_runs/fisher_results/"
 
-run_direc = ""
 N_channels = 2
 channel = ["A","E"]
 sens_fn_calls = ["noisepsd_AE","noisepsd_AE"]
@@ -89,7 +88,6 @@ lam =   1.2925183861048521 # ecliptic longitude
 psi = np.pi/6 # polarization angle
 
 t_ref = 2627744.9218792617
-t_ref = 1.0*2627744.9218792617
 f_ref = 0.0 # let phenom codes set f_ref -> fmax = max(f^2A(f))
 phi_ref = 1.2 # phase at f_ref
 
@@ -108,7 +106,7 @@ delta_f = 1/T_obs
 time = np.arange(0,T_obs,delta_t)
 N = len(time)
 # freq = xp.arange(1e-5,1e-1,delta_f)
-freq = xp.arange(0.0,1/(2*delta_t),delta_f)
+freq = xp.arange(1e-5,1/(2*delta_t),delta_f)
 
 kwargs = {"freq" : freq,
           "delta_t": delta_t,
@@ -134,7 +132,7 @@ elif WINDOW:
     lobe_widths = 5*60  # 5-minute tapers
     gap_window_array= create_gap_window(sim_t, gap_centers, gap_widths, lobe_widths = lobe_widths, use_gpu=False)
 else:
-    gap_window_array = np.ones(len(sim_t))
+    gap_window_array =np.ones(len(sim_t))
 
 # =============== PLACE THE GAP WINDOW ONTO THE WAVEFORM ==============
 MBH_AE_t*=gap_window_array 
@@ -226,7 +224,7 @@ if PLOT_WAVEFORM:
 
 # Compute noise in frequency domain
 noise_f_AE = generate_colored_noise(variance_noise_AET, seed=0, window_function=gap_window_array, return_time_domain=False)
-data_f_AE = MBH_AE_f + 0*noise_f_AE
+data_f_AE = MBH_AE_f + noise_f_AE
 
 ##===========================MCMC Settings============================
 
@@ -354,8 +352,8 @@ if ntemps > 1:
         quit()
 else:
     print("Value of starting log-likelihood points", llike(start[0])) 
-
-fp = mcmc_direc + f"MBH_test_with_noise_seed_0.h5"
+breakpoint()
+fp = mcmc_direc + f"MBH_HMs_case_1_tdi2_SNR_1137_AE_w_noise_no_mask_seed_{seed_number}.h5"
 backend = HDFBackend(fp)
 
 if use_gpu == False:
