@@ -170,8 +170,7 @@ def noise_models_spritz(f,
     rfi_backlink_lowf_AA_ffd = isi_rfi_readout_transfer_AA * disp_2_ffd * backlink_noise_lowf
     tmi_backlink_lowf_AA_ffd = tmi_readout_transfer_AA * disp_2_ffd * backlink_noise_lowf
 
-    # TM noises. It's implemented with a single knee frequency at 0.4e-3 Hz.
-    tm_noise = acc_level**2 * (1 + (0.4e-3/f)**2)
+
 
     # these are the transfer functions
     TM_transfer_AA = 4 * tmi_readout_transfer_AA
@@ -396,7 +395,7 @@ else:
 
 def update_fn(i, res, samp):
         max_it_update=20000
-        skipp =100
+        skipp =1e4
 
    
         print('---------------------------------------------')
