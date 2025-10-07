@@ -19,18 +19,20 @@ from eryn.moves import StretchMove
 from eryn.prior import ProbDistContainer, uniform_dist
 from eryn.backends import HDFBackend
 
-import h5py
 
-
-
-noise_direc = "/Users/ollie.burke/Documents/Work/Code/spritz_challenge/code/mbh_pe_runs/" 
-mcmc_direc = "/Users/ollie.burke/Documents/Work/Code/spritz_challenge/code/mbh_pe_runs/data_mcmc_simulations/"
-fisher_direc = "/Users/ollie.burke/Documents/Work/Code/spritz_challenge/code/mbh_pe_runs/fisher_results/"
-PLOT_WAVEFORM = True
-NO_MASK = True
+# ================ SETTINGS PRIOR TO SIMULATION =============
+PLOT_WAVEFORM =False    # Whether we decide to plot waveform and noise
+GPU_DIRECTORY = False
+OLLIE_DIRECTORY = True
+NO_MASK = False
 CHECK_SNR = False
 MASK = False
-WINDOW = False
+WINDOW = True
+
+if OLLIE_DIRECTORY:
+    noise_direc = "/Users/ollie.burke/Documents/Work/Code/spritz_challenge/code/mbh_pe_runs/" 
+    mcmc_direc = "/Users/ollie.burke/Documents/Work/Code/spritz_challenge/code/mbh_pe_runs/data_mcmc_simulations/"
+    fisher_direc = "/Users/ollie.burke/Documents/Work/Code/spritz_challenge/code/mbh_pe_runs/fisher_results/"
 
 run_direc = ""
 N_channels = 2
@@ -53,6 +55,8 @@ def llike(params):
     """
 
     waveform_prop_f_AE = MBH_f(wave_gen,*params, **kwargs)
+    waveform_prop_t_AE = xp.asarray([gap_window_array*xp.fft.irfft(waveform_prop_f_AE[k]) for k in range(N_channels)])
+    waveform_prop_f_AE = xp.asarray([xp.fft.rfft(waveform_prop_t_AE[k]) for k in range(N_channels)])
 
     diff_f_AE = [data_f_AE[k] - waveform_prop_f_AE[k] for k in range(N_channels)]
     inn_prod = xp.asarray([inner_prod(diff_f_AE[k],diff_f_AE[k],PSD_AE[k],N, delta_t) for k in range(N_channels)])
@@ -121,8 +125,8 @@ sim_t = xp.arange(len(MBH_AE_t[0])) * delta_t
 # Initialise the class with simulation properties and whether or not to treat gaps with
 # nans or not. 
 # Create 3 gaps with different widths
-gap_centers = [2.600e6, 2.6265e6, 2.633e6]  # 10, 30, 50 days
-gap_widths = [7*3600, 0.5*3600, 1*3600]  # 3hr, 2hr, 4hr gaps
+gap_centers = [2.600e6, 0*2.6265e6, 2.633e6]  # 10, 30, 50 days
+gap_widths = [7*3600, 0*0.5*3600, 1*3600]  # 3hr, 2hr, 4hr gaps
 
 if MASK:
     gap_window_array= create_gap_window(sim_t, gap_centers, gap_widths,lobe_widths = 0.0, use_gpu=False)
@@ -147,7 +151,7 @@ freq_np = xp.asarray(freq)
 PSD_AE = PSD_AE_interp(freq_np)
 
 kwargs['PSD'] = PSD_AE
-SNR2_AET = xp.asarray([inner_prod(MBH_AE[i],MBH_AE[i],PSD_AE[i],N, delta_t) for i in range(N_channels)])
+SNR2_AET = xp.asarray([inner_prod(MBH_AE_f[i],MBH_AE_f[i],PSD_AE[i],N, delta_t) for i in range(N_channels)])
 
 for i in range(N_channels):
     print("For channel {}, we observe SNR = {}".format(channel,SNR2_AET[i]**(1/2)))
@@ -175,6 +179,7 @@ if CHECK_SNR:
     plt.hist(SNR_vec, bins = 20)
     plt.xlabel(r'SNR')
     plt.ylabel(r'Histogram')
+    plt.axvline(x = xp.sum(SNR2_AET)**(1/2), c = 'red', linestyle = 'dashed', label = 'Expected SNR')
     plt.show()
 # =============== Plot our waveform =================
 if PLOT_WAVEFORM:
@@ -221,7 +226,7 @@ if PLOT_WAVEFORM:
 
 # Compute noise in frequency domain
 noise_f_AE = generate_colored_noise(variance_noise_AET, seed=0, window_function=gap_window_array, return_time_domain=False)
-data_f_AE = MBH_AE_f + noise_f_AE
+data_f_AE = MBH_AE_f + 0*noise_f_AE
 
 ##===========================MCMC Settings============================
 
@@ -266,7 +271,6 @@ fisher_results = {
     'freq_range': [float(freq[0]), float(freq[-1])],
     'modes': modes
 }
-breakpoint()
 np.save(fisher_direc + 'fisher_results.npy', fisher_results, allow_pickle=True)
 
 Delta_params = np.diag(Cov_Matrix)**(1/2)
