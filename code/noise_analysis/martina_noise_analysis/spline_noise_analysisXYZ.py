@@ -59,7 +59,7 @@ if use_gpu is False:
 branch_names = ["noise"]
 
 ### setting the dimensionality of the parameter to fix
-ndims = {"noise": 9} 
+ndims = {"noise": 6} 
 
 ### setting the Reversible Jump on the glitches allowing between 1 and 0 glitches
 nleaves_max = {"noise": 1} 
@@ -67,14 +67,14 @@ nleaves_min = { "noise": 1}
 
 ### setting the number of walkers to use and the number of temperatures 
 
-nwalkers = 20
+nwalkers = 12
 ntemps = 1
 # Tmax = np.inf
 Tmax = 1.0
 tempering_kwargs=dict(ntemps=ntemps,Tmax=Tmax) # here the maximum temperature is the to infinite so that we ensure sampling the priors ( see https://arxiv.org/abs/2303.02164 )
-
-
-parameter_noise_amplitude = [np.sqrt( (6.35e-12)**2 + (3.32e-12)**2+ (3.0E-12)**2 ), np.sqrt( (1.42e-12)**2 +(3.0E-12)**2 ),  2.4e-15]
+                        
+   
+parameter_noise_amplitude = [2.4e-15, 1.42e-12,3.32e-12,6.35e-12,3.0e-12,3.0e-12]
 armlength = 8.322688660167833
 true_start = True
 ## -------------------   uploading Spritz data set ------------------ ##
@@ -113,10 +113,10 @@ normalized_cutoff = cutoff_freq / nyquist_freq
 ## Design a first-order Butterworth filter
 b, a = butter(N=1, Wn=normalized_cutoff, btype='low', analog=False)
 
-A_data,E_data, T_data = AET(data_tdi_X, data_tdi_Y, data_tdi_Z)
 
-A_data_filtered = filtfilt(b, a, A_data)[500:-500]
-E_data_filtered = filtfilt(b, a, E_data)[500:-500]
+X_data_filtered = filtfilt(b, a, data_tdi_X)[500:-500]
+Y_data_filtered = filtfilt(b, a, data_tdi_Y)[500:-500]
+Z_data_filtered = filtfilt(b, a, data_tdi_Z)[500:-500]
 
 time = time[500:-500]
 
@@ -125,12 +125,13 @@ time = time[500:-500]
 
 # Note we only use A and E
 
-freqs = np.fft.rfftfreq(len(A_data_filtered), dt)  # fs =1/dt
+freqs = np.fft.rfftfreq(len(X_data_filtered), dt)  # fs =1/dt
 
-Anfft = np.fft.rfft(A_data_filtered ) * dt # TD glitch
-Enfft = np.fft.rfft(E_data_filtered) * dt # TD glitch
+Xnfft = np.fft.rfft(X_data_filtered ) * dt # TD glitch
+Ynfft = np.fft.rfft(Y_data_filtered) * dt # TD glitch
+Znfft = np.fft.rfft(Z_data_filtered) * dt # TD glitch
 
-fft_data_AE = xp.array([Anfft,Enfft])  
+fft_data_XYZ = xp.array([Xnfft,Ynfft,Znfft])  
 
 ## ---------------------- noise models ---------------- ##
 
@@ -171,12 +172,12 @@ def noise_models_correlation_spritz(f,
     # --------- these are the PSD for TM
     TM_transfer_XX = 4 * Cxx * ( 3 + np.cos(2*omega*T))
     # these are the noise terms
-    TM_noise_XX_ffd = TM_transfer_XX * acc_2_ffd* tm_noise**2 
+    TM_noise_XX_ffd = TM_transfer_XX * acc_2_ffd* tm_noise 
 
     # --------- these are the CSD for TM
     TM_transfer_XY = 4 * Cxy
     # these are the noise terms
-    TM_noise_XY_ffd = TM_transfer_XY * acc_2_ffd* tm_noise**2
+    TM_noise_XY_ffd = TM_transfer_XY * acc_2_ffd* tm_noise
 
     # --------- these are PSD for OMS 
 
@@ -216,51 +217,93 @@ def noise_models_correlation_spritz(f,
 
     total_noise_XX = RFI_backlink_transfer_XX_ffd + TMI_backlink_transfer_XX_ffd + RFI_readout_transfer_XX_ffd + ISI_readout_transfer_XX_ffd +TMI_readout_transfer_XX_ffd + TM_noise_XX_ffd
     total_noise_XY = RFI_backlink_transfer_XY_ffd + TMI_backlink_transfer_XY_ffd + RFI_readout_transfer_XY_ffd + ISI_readout_transfer_XY_ffd +TMI_readout_transfer_XY_ffd + TM_noise_XY_ffd
-
+    
     #TODO: Be careful with this. 
     total_noise_XX[0] = total_noise_XX[1]
  
     return total_noise_XX,total_noise_XY
 
-
-
 ## --------- Reducing the analyzed frequencies ---------- ##
 
 df = freqs[1] - freqs[0]  # 1 / (dt * len(t_in))
-
+'''
 fmin = 2e-5
 fmax = 2e-2
 frequencymask = (freqs > fmin) & (freqs < fmax) # remove ALL the wiggles CAREFULL
 
 freqs_cut =  np.array(freqs[frequencymask])
 
-## --------------------------  Get the filter's frequency response -------------  ##
-_, h = freqz(b, a, worN=len(freqs), fs=1/dt)
+freq_welch_f, psd_data_XX= welch(data_tdi_X, fs=1/dt, window='boxcar', nperseg=len(data_tdi_X)//120, noverlap=50)
 
-## ------------- Apply the filter in the frequency domain to the unfiltered noise PSD ------------ ##
-breakpoint()
-Sxx_unfiltered = noise_models_correlation_spritz(freqs) 
-Sxy_unfiltered =  noise_models_spritz(freqs)  
+from scipy.signal import coherence
+from scipy.signal import csd
+f_coh, Cxy_data = csd(data_tdi_X, data_tdi_Y, fs=1/dt, window='boxcar', nperseg=len(data_tdi_X)//12, noverlap=50)
 
-Sa_filtered = Sa_unfiltered * np.abs(h)**4  # Squared magnitude of the filter response
-Se_filtered = Se_unfiltered * np.abs(h)**4  # Squared magnitude of the filter response
-
-h = h[frequencymask]
-
-fft_data_cutted = xp.array([fft_data_AE[0,:][frequencymask],fft_data_AE[1,:][frequencymask] ]) ## these are the final data used for the analysis
-
-## ----------- Plots model vs data -------##
-freq_welch_f, psd_data_A_filtered= welch(A_data_filtered, fs=1/dt, window='boxcar', nperseg=len(A_data_filtered)//12, noverlap=50)
 plt.figure()
-plt.loglog(freq_welch_f,np.sqrt(psd_data_A_filtered),'-',alpha=1,label = 'PSD data')
-plt.loglog(freqs_cut,np.sqrt(Sa_filtered[frequencymask]),'-',alpha=1,label = 'PSD model')
+plt.loglog(freq_welch_f[1:],np.sqrt(noise_models_correlation_spritz(freq_welch_f)[0])[1:],'-',alpha=1,label = 'PSD data')
+plt.loglog(freq_welch_f[1:],np.sqrt(psd_data_XX)[1:],'-',alpha=1,label = 'PSD model')
 plt.xlabel('Frequency [Hz]')
 plt.ylabel('Spline example ')
-plt.ylim([3e-23,1e-22])
-plt.xlim([2.8e-5,freqs_cut[-1]])
-plt.savefig("plots/data_vs_model.png")
+#plt.ylim([1e-22,2e-19])
+plt.xlim([2.8e-5,freqs[-1]])
+plt.savefig("/data/mmuratore/gaps_project/artifacts/code/noise_analysis/martina_noise_analysis/plots/data_vs_model.png")
 plt.close()
-breakpoint()
+
+plt.figure()
+plt.loglog(f_coh[1:],np.abs(noise_models_correlation_spritz(f_coh)[1])[1:],'-',alpha=1,label = 'CSD model')
+plt.loglog(f_coh[1:],np.abs(Cxy_data)[1:],'-',alpha=1,label = 'CSD data')
+plt.xlabel('Frequency [Hz]')
+plt.ylabel('Spline example ')
+#plt.ylim([1e-22,2e-19])
+plt.xlim([2.8e-5,freqs[-1]])
+plt.legend()
+plt.savefig("/data/mmuratore/gaps_project/artifacts/code/noise_analysis/martina_noise_analysis/plots/data_vs_model_csd.png")
+plt.close()
+
+## --------------------------  Get the filter's frequency response -------------  ##
+
+freq_welch_f, psd_data_XX_filtered= welch(X_data_filtered, fs=1/dt, window='boxcar', nperseg=len(X_data_filtered)//120, noverlap=50)
+f_coh, Cxy_data_filtered = csd(X_data_filtered,Y_data_filtered, fs=1/dt, window='boxcar', nperseg=len(data_tdi_X)//12, noverlap=50)
+
+
+## ------------- Apply the filter in the frequency domain to the unfiltered noise PSD ------------ ##
+
+Sxx_unfiltered = noise_models_correlation_spritz(freqs)[0]
+Sxy_unfiltered = noise_models_correlation_spritz(freqs)[1] 
+
+Sxx_filtered = Sxx_unfiltered * np.abs(h)**4  # Squared magnitude of the filter response
+Sxy_filtered = Sxy_unfiltered * np.abs(h)**4  # Squared magnitude of the filter response
+'''
+
+_, h = freqz(b, a, worN=len(freqs), fs=1/dt)
+h = h[frequencymask]
+
+'''
+## ----------- Plots model vs data -------##
+
+plt.figure()
+plt.loglog(freqs[1:],np.sqrt(Sxx_filtered)[1:],'-',alpha=1,label = 'PSD data')
+plt.loglog(freq_welch_f[1:],psd_data_XX_filtered[1:],'-',alpha=1,label = 'PSD model filtered')
+plt.xlabel('Frequency [Hz]')
+plt.ylabel('Spline example ')
+#plt.ylim([1e-22,2e-19])
+plt.xlim([2.8e-5,freqs[-1]])
+plt.legend()
+plt.savefig("/data/mmuratore/gaps_project/artifacts/code/noise_analysis/martina_noise_analysis/plots/data_vs_model.png")
+
+plt.figure()
+plt.loglog(f_coh[1:],np.abs(Cxy_data_filtered)[1:],'-',alpha=1,label = 'PSD model filtered')
+plt.loglog(freqs[1:],np.abs(Sxy_filtered)[1:],'-',alpha=1,label = 'PSD data')
+plt.xlabel('Frequency [Hz]')
+plt.ylabel('Spline example ')
+#plt.ylim([1e-22,2e-19])
+plt.xlim([2.8e-5,freqs[-1]])
+plt.legend()
+plt.savefig("/data/mmuratore/gaps_project/artifacts/code/noise_analysis/martina_noise_analysis/plots/data_vs_model_cxy.png")
+plt.close()
+'''
+#fft_data_cutted = xp.array([fft_data_XYZ[0,:][frequencymask],fft_data_XYZ[1,:][frequencymask],fft_data_XYZ[2,:][frequencymask] ]) ## these are the final data used for the analysis
+fft_data = xp.array([fft_data_XYZ[0,:],fft_data_XYZ[1,:],fft_data_XYZ[2,:]])
 ### --------------- Splines definition ---------------- ####
 
 # we consider 5 knots to allow for a sufficient slowly varing PDS
@@ -320,14 +363,17 @@ def splined_psd(f_array, noise_params, logf_knots, spline_weights, average_armle
         Use Spritz noise model (default=True).
     """
 
-    A, B, C = noise_params
+    A, B, C,D,F,G = noise_params
 
     if spritz:
-        psd = noise_models_spritz(
+        psd = noise_models_correlation_spritz(
             f_array,
-            isi_rfi_back_oms_noise_level=A,
-            tmi_oms_back_level=B,
-            acc_level=C,
+            acc_level =A,
+            readout_tmi =B,
+            readout_rfi = C,
+            readout_isi = D,
+            backlink_tmi = F,
+            backlink_rfi = G,
             T=average_armlength,
         ) * spline_psd_mod(xp.array(logf_knots), xp.array(spline_weights),xp.array(f_array))
     
@@ -335,7 +381,7 @@ def splined_psd(f_array, noise_params, logf_knots, spline_weights, average_armle
         raise NotImplementedError("Only Spritz model is implemented so far.")
 
     return psd
-
+'''
 psdAE = splined_psd(freqs_cut,parameter_noise_amplitude,logf_knots,noise_uncert_weights, armlength)
 
 ## -----------Plots -------##
@@ -353,7 +399,7 @@ plt.legend()
 plt.savefig("plots/estimated_noise_model.png")
 plt.close()
 ### ------- likelihood definition ------- ###
-
+'''
 
 ## -----------noise moves-----------##
 
@@ -365,34 +411,39 @@ moves = [(StretchMove(gibbs_sampling_setup ="noise",live_dangerously=False))]
 
 starting_coords = np.zeros((ntemps * nwalkers, ndims['noise'] ))
 coords = { "noise": np.zeros((ntemps, nwalkers, nleaves_max["noise"], ndims["noise"]))}
-true_vals_spline = np.array((ndims['noise'])*[0])
+
+#true_vals_spline = np.array((ndims['noise'])*[0])
 
 
 d1 = 0.0001
 d2 = 1e-4
 
-starting_coords[:,:] = (true_vals_spline + d2 * np.random.randn(nwalkers * ntemps,ndims['noise']) )
+starting_coords[:,:] = (parameter_noise_amplitude + d2 * np.random.randn(nwalkers * ntemps,ndims['noise']) )
 
 coords["noise"] = starting_coords.reshape(ntemps, nwalkers, nleaves_max["noise"], ndims['noise'])
 
 
 ## -------------noise priors----------##
 
+
 priors = {}
 
+a1_min, a1_max = true_params[0]-1, true_params[0]+1
+a2_min, a2_max = true_params[1]-1, true_params[1]+1
+a3_min, a3_max = true_params[2]-1, true_params[2]+1
+a4_min, a4_max = true_params[3]-1, true_params[3]+1
+a5_min, a5_max = true_params[4]-1, true_params[4]+1
+a6_min, a6_max = true_params[5]-1, true_params[5]+1
 prior_amplitude =1
 
+
 priors_noise = {
-0: uniform_dist(-prior_amplitude,prior_amplitude),
-1:uniform_dist(-prior_amplitude,prior_amplitude),
-2:uniform_dist(-prior_amplitude,prior_amplitude),
-3:uniform_dist(-prior_amplitude,prior_amplitude),
-4:uniform_dist(-prior_amplitude,prior_amplitude),
-5: uniform_dist(-prior_amplitude,prior_amplitude),
-6:uniform_dist(-prior_amplitude,prior_amplitude),
-7:uniform_dist(-prior_amplitude,prior_amplitude),
-8:uniform_dist(-prior_amplitude,prior_amplitude),
-9:uniform_dist(-prior_amplitude,prior_amplitude)}
+0: uniform_dist(a1_min, a1_max),
+1: uniform_dist(a2_min, a2_max),
+2: uniform_dist(a3_min, a3_max),
+3: uniform_dist(a4_min, a4_max),
+4: uniform_dist(a5_min, a5_max),
+5: uniform_dist(a6_min, a6_max),
 
 priors['noise'] = ProbDistContainer(priors_noise) 
 
@@ -408,7 +459,7 @@ priors['noise'] = ProbDistContainer(priors_noise)
 ## ------------ indices to start the reversible jump  ----###
 inds = {"noise": np.ones((ntemps, nwalkers, nleaves_max["noise"]),  dtype=bool)}
 
-fp = 'script_to_estimate_only_psd_spritz_noise_with_splines.h5'
+fp = 'script_to_estimate_psd_csd_with_spritz.h5'
 
 if DELETE_BACKEND:
     if os.path.exists(fp):
@@ -460,7 +511,7 @@ def update_fn(i, res, samp):
         plt.close()
         noise_sampler= samp.get_chain()["noise"][-skipp:,0].reshape(-1,ndims['noise'])
         
-        parameter_labels = [f'knot_{j}' for j in range(0,10)]
+        parameter_labels = [f'noise_amplitude_{j}' for j in range(0,7)]
 
         fig, axes = plt.subplots(3, 3, figsize=(15, 12))
         colors = ['#6495ed', '#ff6b6b', '#4ecdc4', '#95e1d3', '#f38181', 
@@ -470,24 +521,21 @@ def update_fn(i, res, samp):
         axes_flat = axes.flatten()
 
         
-        param_labels_knots = ['knot0', 'knot1', 'knot2', 'knot3', 'knot4', 'knot5', 'knot6', 'knot7', 'knot8', 'knot9']
         for i in range(9):
             axes_flat[i].plot(noise_sampler[:, i], 
                             color=colors[i], alpha=0.7, linewidth=0.5)
             axes_flat[i].set_xlabel('Iteration', fontsize=11)
-            axes_flat[i].set_ylabel(param_labels_knots[i], fontsize=11)
+            axes_flat[i].set_ylabel(parameter_labels[i], fontsize=11)
             axes_flat[i].grid(True, alpha=0.3)
 
 
         plt.tight_layout()
-        plt.savefig("plots/noise_knots_trace.png", dpi=300)
+        plt.savefig("plots/noise_trace.png", dpi=300)
         plt.close()
 
- 
-        true_params = [0,0,0,0,0,0,0,0,0,0]
+
         c = ChainConsumer()
         # parameter_labels = ['$isi+rfi_OMS$','$tmi$','$TM$']
-        parameter_labels = ['knot0', 'knot1', 'knot2', 'knot3', 'knot4', 'knot5', 'knot6', 'knot7', 'knot8', 'knot9']
         c.add_chain(noise_sampler, parameters=parameter_labels, name='noise', color='#6495ed')
         c.configure(
         summary=False,
@@ -505,7 +553,7 @@ def update_fn(i, res, samp):
         smooth=2,# Optional: fewer ticks for clarity
         )
         # c.add_marker([ 7.768197989237916e-12, 3.3190962625389463e-12 ,  2.4e-15], marker_style="x", marker_size=500, color='#DC143C')
-        fig = c.plotter.plot(figsize=(8,8), truth = true_params, legend=True)
+        fig = c.plotter.plot(figsize=(8,8), truth = parameter_noise_amplitude, legend=True)
         plt.savefig("plots/noise_spritz.png", dpi=300)
         plt.close()
 
@@ -517,7 +565,7 @@ def update_fn(i, res, samp):
 
         n_samples_noise = noise_sampler.shape[0]
         indices = np.random.choice(n_samples_noise, size=n_iter, replace=False)
-
+        '''
         for idx in indices:
             noise_params = noise_sampler[idx,:]  # shape (>=9,)
         
@@ -570,7 +618,7 @@ def update_fn(i, res, samp):
         plt.legend()
         plt.savefig("plots/eryn_estimated_noise_model.png")
         plt.close()
-  
+        '''
 
 def log_like_fn(x,data,df,freqs,filter_tf,subset = 1):
 
@@ -586,12 +634,25 @@ def log_like_fn(x,data,df,freqs,filter_tf,subset = 1):
 
             start = int(inds[i])
             end = int(inds[i + 1])
-            noise_params =beta_params[start:end].squeeze()
-           
-            psdA_estimated = splined_psd(freqs, [parameter_noise_amplitude[0], parameter_noise_amplitude[1], parameter_noise_amplitude[2]],logf_knots,noise_params[:5],armlength)
-            psdE_estimated = splined_psd(freqs, [parameter_noise_amplitude[0], parameter_noise_amplitude[1], parameter_noise_amplitude[2]],logf_knots,noise_params[5:],armlength)
+            A, B, C,D,F,G =beta_params[start:end].squeeze()
+
+            psd_estimate = noise_models_correlation_spritz(
+                f_array,
+                acc_level =A,
+                readout_tmi =B,
+                readout_rfi = C,
+                readout_isi = D,
+                backlink_tmi = F,
+                backlink_rfi = G,
+                T=average_armlength,
+            ) 
+
     
-            tot_psd =  xp.asarray([psdA_estimated* np.abs(filter_tf)**4,  psdE_estimated* np.abs(filter_tf)**4]) ## to account for the filter
+            cov_matrix = xp.asarray([
+                    [psd_estimate[0] * np.abs(filter_tf)**4, psd_estimate[1] * np.abs(filter_tf)**4, psd_estimate[1] * np.abs(filter_tf)**4],
+                    [psd_estimate[1] * np.abs(filter_tf)**4, psd_estimate[0] * np.abs(filter_tf)**4, psd_estimate[1] * np.abs(filter_tf)**4],
+                    [psd_estimate[1] * np.abs(filter_tf)**4, psd_estimate[1] * np.abs(filter_tf)**4, psd_estimate[0] * np.abs(filter_tf)**4]])
+ ## to account for the filter
 
         
             # xp.get_default_memory_pool().free_all_blocks()
@@ -599,8 +660,8 @@ def log_like_fn(x,data,df,freqs,filter_tf,subset = 1):
 
             ## computing the likelihood 
 
-            logl = -1/2 * (4*df* xp.sum((xp.conj(data) *(data)).real /(tot_psd ), axis=0).sum() )
-            logl += -  xp.sum(xp.log(tot_psd), axis=0).sum()
+            logl = -1/2 * (4*df* xp.sum((xp.conj(data) *(data)).real /(cov_matrix ), axis=0).sum() )
+            logl += -  xp.sum(xp.log(cov_matrix), axis=0).sum()
             
             logl = logl[np.newaxis]
             if xp.any(xp.isnan(logl)):
@@ -626,7 +687,7 @@ ensemble = EnsembleSampler(
         ndims,  # dimension of the problem 
         log_like_fn, # likelihood function
         priors, 
-        args=[fft_data_cutted ,  df,freqs_cut,h],  # data , sampling frequency, frequencies used, filter
+        args=[fft_data ,  df,freqs,h],  # data , sampling frequency, frequencies used, filter
         tempering_kwargs=tempering_kwargs, 
         moves=moves , # set to true if RJ is used
         rj_moves=False, # set to true if RJ is used
