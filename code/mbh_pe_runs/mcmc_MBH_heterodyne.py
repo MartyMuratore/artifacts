@@ -53,7 +53,6 @@ seed_number = 0
 # We'll define the likelihood function later, after setting up the GapLikelihood object
 
 amp_phase_kwargs = dict(run_phenomd=False)
-
 response_kwargs = dict(TDItag="AET", tdi2=True)
 wave_gen = BBHWaveformFD(amp_phase_kwargs=dict(run_phenomd=False), response_kwargs=response_kwargs)
 
@@ -212,7 +211,7 @@ data_f_AE = MBH_AE_f + noise_f_AE
 
 ##===========================MCMC Settings============================
 
-iterations = 30000  # The number of steps to run of each walker
+iterations = 1000  # The number of steps to run of each walker
 burnin = 0 # I always set burnin when I analyse my samples
 nwalkers = 50  #50 #members of the ensemble, like number of chains
 
