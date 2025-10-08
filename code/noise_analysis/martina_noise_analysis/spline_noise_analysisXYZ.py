@@ -7,6 +7,7 @@ import corner
 
 from chainconsumer import ChainConsumer
 
+
 ### import packages for signal processing and covariance matrices computations
 
 from scipy.signal import welch
