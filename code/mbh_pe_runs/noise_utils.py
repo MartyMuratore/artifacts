@@ -12,8 +12,13 @@ import numpy as np
 import os
 
 
-def inner_prod(signal_1_f,signal_2_f,PSD, N, delta_t, xp = np):
-    return 4*delta_t * xp.real(xp.sum(signal_1_f * signal_2_f.conj()/(N*PSD)))
+def inner_prod(signal_1_f, signal_2_f, PSD, delta_f, xp=np):
+    """
+    Compute noise-weighted inner product using BBHx's standard normalization.
+
+    Uses: ⟨a|b⟩ = 4·Δf·Re[Σ a(f)·b*(f) / Sn(f)]
+    """
+    return 4 * delta_f * xp.real(xp.sum(signal_1_f * signal_2_f.conj() / PSD))
 
 
 def sensitivity_LWA(f):
@@ -240,7 +245,7 @@ def get_array_module(array, CUPY_AVAILABLE=False):
         return cp
     return np
 
-def generate_colored_noise(variance_noise_AET, seed=0, window_function=None, return_time_domain=False):
+def generate_colored_noise(variance_noise_AET, delta_t, seed=0, window_function=None, return_time_domain=False):
     """
     Generate colored noise with specified noise variance per frequency bin.
     
@@ -295,18 +300,18 @@ def generate_colored_noise(variance_noise_AET, seed=0, window_function=None, ret
     
     # Apply window function if provided
     if window_function is not None:
-        return _apply_window_to_noise(noise_f_AET, window_function, xp, return_time_domain)
+        return _apply_window_to_noise(noise_f_AET, delta_t, window_function, xp, return_time_domain)
     
     # Return based on requested domain
     if return_time_domain:
         # Convert to time domain
-        noise_time = xp.array([xp.fft.irfft(noise_f_AET[ch]) for ch in range(n_channels)])
+        noise_time = xp.array([xp.fft.irfft(noise_f_AET[ch])/delta_t for ch in range(n_channels)])
         return noise_time
     else:
         return noise_f_AET
 
 
-def _apply_window_to_noise(noise_freq, window_function, xp, return_time_domain):
+def _apply_window_to_noise(noise_freq, delta_t, window_function, xp, return_time_domain):
     """
     Apply time-domain window to frequency-domain noise.
     
@@ -330,17 +335,17 @@ def _apply_window_to_noise(noise_freq, window_function, xp, return_time_domain):
     
     for channel in range(n_channels):
         # Transform to time domain
-        noise_time = xp.fft.irfft(noise_freq[channel], n = len(window_function))
+        noise_time = (1/delta_t) * xp.fft.irfft(noise_freq[channel], n = len(window_function))
          
         # Apply window
         windowed_time = window_function * noise_time
         
         # Transform back to frequency domain
-        windowed_freq = xp.fft.rfft(windowed_time)
+        windowed_freq = delta_t *xp.fft.rfft(windowed_time)
         windowed_noise.append(windowed_freq)
 
     if return_time_domain:
-        return xp.asarray([xp.fft.irfft(windowed_noise[k]) for k in range(n_channels)])
+        return xp.asarray([(1/delta_t) * xp.fft.irfft(windowed_noise[k]) for k in range(n_channels)])
     else: 
         return xp.asarray(windowed_noise)
 

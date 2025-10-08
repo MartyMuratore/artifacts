@@ -10,9 +10,6 @@ from noise_utils import load_psd_from_file, inner_prod, generate_colored_noise, 
 from window_func import create_gap_window, gap_definitions, taper_defs, include_planned, include_unplanned, planned_seed, unplanned_seed
 
 from lisatools.utils.constants import YRSID_SI
-from lisaglitch import GapMaskGenerator
-from lisagap import GapWindowGenerator
-
 
 from eryn.ensemble import EnsembleSampler
 from eryn.moves import StretchMove
@@ -54,11 +51,13 @@ def llike(params):
     """
 
     waveform_prop_f_AE = MBH_f(wave_gen,*params, **kwargs)
-    waveform_prop_t_AE = xp.asarray([gap_window_array*xp.fft.irfft(waveform_prop_f_AE[k]) for k in range(N_channels)])
-    waveform_prop_f_AE = xp.asarray([xp.fft.rfft(waveform_prop_t_AE[k]) for k in range(N_channels)])
+    # BBHx waveforms are in Hz^-1, need to divide by delta_t before IRFFT
+    waveform_prop_t_AE = xp.asarray([gap_window_array*xp.fft.irfft(waveform_prop_f_AE[k]/delta_t) for k in range(N_channels)])
+    # Multiply by delta_t after RFFT to get back to Hz^-1
+    waveform_prop_f_AE = xp.asarray([xp.fft.rfft(waveform_prop_t_AE[k])*delta_t for k in range(N_channels)])
 
     diff_f_AE = [data_f_AE[k] - waveform_prop_f_AE[k] for k in range(N_channels)]
-    inn_prod = xp.asarray([inner_prod(diff_f_AE[k],diff_f_AE[k],PSD_AE[k],N, delta_t) for k in range(N_channels)])
+    inn_prod = xp.asarray([inner_prod(diff_f_AE[k],diff_f_AE[k],PSD_AE[k], delta_f, xp=xp) for k in range(N_channels)])
     return(-0.5 * xp.sum(inn_prod))
 
 def lpost(params):
@@ -117,26 +116,28 @@ kwargs = {"freq" : freq,
 MBH_AE = MBH_f(wave_gen, *params, **kwargs)
 
 ##===========================Convert into time-domain ===================
-MBH_AE_t = xp.asarray([xp.fft.irfft(MBH_AE[k]) for k in range(N_channels)])
+# BBHx waveforms are in Hz^-1, divide by delta_t before IRFFT
+MBH_AE_t = xp.asarray([xp.fft.irfft(MBH_AE[k] / delta_t) for k in range(N_channels)])
 sim_t = xp.arange(len(MBH_AE_t[0])) * delta_t
 ###========================SET UP GAP SITUATION ===========================
 # Initialise the class with simulation properties and whether or not to treat gaps with
-# nans or not. 
+# nans or not.
 # Create 3 gaps with different widths
 gap_centers = [2.600e6, 0*2.6265e6, 2.633e6]  # 10, 30, 50 days
 gap_widths = [7*3600, 0*0.5*3600, 1*3600]  # 3hr, 2hr, 4hr gaps
 
 if MASK:
     gap_window_array= create_gap_window(sim_t, gap_centers, gap_widths,lobe_widths = 0.0, use_gpu=False)
-elif WINDOW: 
+elif WINDOW:
     lobe_widths = 5*60  # 5-minute tapers
     gap_window_array= create_gap_window(sim_t, gap_centers, gap_widths, lobe_widths = lobe_widths, use_gpu=False)
 else:
     gap_window_array =np.ones(len(sim_t))
 
 # =============== PLACE THE GAP WINDOW ONTO THE WAVEFORM ==============
-MBH_AE_t*=gap_window_array 
-MBH_AE_f = xp.asarray([xp.fft.rfft(MBH_AE_t[k]) for k in range(N_channels)])
+MBH_AE_t*=gap_window_array
+# Multiply by delta_t after RFFT to get back to Hz^-1
+MBH_AE_f = xp.asarray([xp.fft.rfft(MBH_AE_t[k]) * delta_t for k in range(N_channels)])
 # Define PSDs
 # First, write PSD to a file.
 
@@ -149,7 +150,7 @@ freq_np = xp.asarray(freq)
 PSD_AE = PSD_AE_interp(freq_np)
 
 kwargs['PSD'] = PSD_AE
-SNR2_AET = xp.asarray([inner_prod(MBH_AE_f[i],MBH_AE_f[i],PSD_AE[i],N, delta_t) for i in range(N_channels)])
+SNR2_AET = xp.asarray([inner_prod(MBH_AE_f[i],MBH_AE_f[i],PSD_AE[i], delta_f, xp=xp) for i in range(N_channels)])
 
 for i in range(N_channels):
     print("For channel {}, we observe SNR = {}".format(channel,SNR2_AET[i]**(1/2)))
@@ -160,15 +161,16 @@ print("Total SNR for A, E, T is given by", xp.sum(SNR2_AET)**(1/2))
 
 # ======================== GENERATE NOISE REALISATION ====================
 N = len(sim_t)
-variance_noise_AET = [N * PSD_AE[k] / (4*delta_t) for k in range(N_channels)]
+# With BBHx normalization, variance = PSD / (4*delta_f)
+variance_noise_AET = [PSD_AE[k] / (4*delta_f) for k in range(N_channels)]
 
 if CHECK_SNR:
     SNR_vec = []
     for j in tqdm(range(0,100)):
-        noise_f_AE = generate_colored_noise(variance_noise_AET, seed=j, window_function=gap_window_array, return_time_domain=False)
+        noise_f_AE = generate_colored_noise(variance_noise_AET, delta_t, seed=j, window_function=gap_window_array, return_time_domain=False)
 
-        num = xp.sum(xp.asarray([inner_prod(MBH_AE_f[i] + noise_f_AE[i], MBH_AE_f[i], PSD_AE[i], N, delta_t) for i in range(N_channels)]))**2
-        denom = xp.sum(xp.asarray([inner_prod(MBH_AE_f[i], MBH_AE_f[i], PSD_AE[i], N, delta_t) for i in range(N_channels)]))
+        num = xp.sum(xp.asarray([inner_prod(MBH_AE_f[i] + noise_f_AE[i], MBH_AE_f[i], PSD_AE[i], delta_f, xp=xp) for i in range(N_channels)]))**2
+        denom = xp.sum(xp.asarray([inner_prod(MBH_AE_f[i], MBH_AE_f[i], PSD_AE[i], delta_f, xp=xp) for i in range(N_channels)]))
 
         SNRs = xp.sqrt(num/denom)
         SNR_vec.append(SNRs)
@@ -181,7 +183,7 @@ if CHECK_SNR:
     plt.show()
 # =============== Plot our waveform =================
 if PLOT_WAVEFORM:
-    noise_t_AE = generate_colored_noise(variance_noise_AET, seed=0, window_function=gap_window_array, return_time_domain=True)
+    noise_t_AE = generate_colored_noise(variance_noise_AET, delta_t, seed=0, window_function=gap_window_array, return_time_domain=True)
     plt.figure(figsize=(10, 6))
     plt.plot(sim_t, xp.asarray(noise_t_AE[0]) if use_gpu else MBH_AE_t[0] + noise_t_AE[0], label = 'Data TDI2')
     plt.plot(sim_t, xp.asarray(MBH_AE_t[0]) if use_gpu else MBH_AE_t[0], label = 'BBHx', c = 'red', alpha = 0.4) 
@@ -223,7 +225,7 @@ if PLOT_WAVEFORM:
 
 
 # Compute noise in frequency domain
-noise_f_AE = generate_colored_noise(variance_noise_AET, seed=0, window_function=gap_window_array, return_time_domain=False)
+noise_f_AE = generate_colored_noise(variance_noise_AET, delta_t, seed=0, window_function=gap_window_array, return_time_domain=False)
 data_f_AE = MBH_AE_f + noise_f_AE
 
 ##===========================MCMC Settings============================

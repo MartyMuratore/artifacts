@@ -12,21 +12,21 @@ else:
 def MBH_f(wave_gen, M,q,a1,a2,inc,dist_Gpc,phi_ref,lam,beta,psi,t_ref, **kwargs):
     """
     Code to generate massive black holes. Change of parametrisation to M, q and distance
-    in Gpc. Outputs TDI A, E T for MBH. 
+    in Gpc. Outputs TDI A, E T for MBH.
+
+    Uses BBHx's standard normalization convention (no delta_t scaling).
     """
     freq = kwargs['freq']
-    f_ref = kwargs['f_ref'] 
+    f_ref = kwargs['f_ref']
     modes = kwargs['modes']
-    delta_t = kwargs['delta_t']
     m1 = q*M/(1.0 + q)
     m2 = M/(1.0 + q)
     dist_m = dist_Gpc * 1e9 * PC_SI
-    MBH_AET = wave_gen(m1,m2,a1,a2,dist_m,phi_ref,f_ref,inc,lam,beta,psi,t_ref, freqs=freq, modes=modes, 
-                       direct=False, fill=True, squeeze=True, 
+    MBH_AET = wave_gen(m1,m2,a1,a2,dist_m,phi_ref,f_ref,inc,lam,beta,psi,t_ref, freqs=freq, modes=modes,
+                       direct=False, fill=True, squeeze=True,
                        length=len(freq))[0][0:2]
 
-    
-    return MBH_AET/delta_t
+    return MBH_AET
 
 
 
@@ -46,14 +46,15 @@ def build_fish_matrix(wave_gen, M, q, a1, a2, inc, dist_Gpc, phi_ref, lam,beta,p
     params_copy = params.copy()
     for j in range(N_params):
         params[j] = params[j] + steps[j] # this is the f(x + h) step
-        h_f_p = MBH_f(wave_gen,*params, **kwargs) 
-        h_f_p_t = window_func*xp.fft.irfft(h_f_p) # Apply gap if required
-        h_f_p = xp.fft.rfft(h_f_p_t)
+        h_f_p = MBH_f(wave_gen,*params, **kwargs)
+        delta_t = kwargs['delta_t']
+        h_f_p_t = window_func*xp.fft.irfft(h_f_p / delta_t) # Apply gap if required
+        h_f_p = xp.fft.rfft(h_f_p_t) * delta_t
 
         params[j] = params[j] - 2 * steps[j] # this is the f(x - h) step
         h_f_m = MBH_f(wave_gen,*params, **kwargs)
-        h_f_m_t = window_func*xp.fft.irfft(h_f_m) # Apply gap if required
-        h_f_m = xp.fft.rfft(h_f_m_t)
+        h_f_m_t = window_func*xp.fft.irfft(h_f_m / delta_t) # Apply gap if required
+        h_f_m = xp.fft.rfft(h_f_m_t) * delta_t
 
         deriv_h_f = (h_f_p - h_f_m) / (2*steps[j]) # compute derivative
         deriv_vec.append(deriv_h_f)
