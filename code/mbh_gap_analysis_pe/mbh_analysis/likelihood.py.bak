@@ -1,0 +1,48 @@
+"""
+Likelihood Functions for MBH Parameter Estimation
+
+This module provides likelihood computation classes for MCMC sampling.
+
+Classes
+-------
+GapLikelihood : Unified likelihood interface (heterodyned or direct)
+
+Notes
+-----
+For full heterodyned likelihood implementation, see gap_heterodyne_likelihood.py
+This module provides a simplified interface for backward compatibility.
+"""
+
+# Import from the full implementation (now in old/ directory)
+import sys
+import os
+
+# Add parent directory and old/ directory to path for imports
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+old_dir = os.path.join(parent_dir, 'old')
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+if old_dir not in sys.path:
+    sys.path.insert(0, old_dir)
+
+try:
+    from gap_heterodyne_likelihood import GapLikelihood
+    print("✓ Imported GapLikelihood from old/gap_heterodyne_likelihood.py")
+except ImportError as e:
+    print(f"Warning: Could not import from gap_heterodyne_likelihood.py: {e}")
+    print("Creating placeholder GapLikelihood class")
+    
+    class GapLikelihood:
+        """
+        Placeholder for GapLikelihood class.
+        
+        The full implementation is in gap_heterodyne_likelihood.py.
+        This placeholder is provided for compatibility.
+        """
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError(
+                "GapLikelihood requires gap_heterodyne_likelihood.py. "
+                "Please ensure it's in the parent directory."
+            )
+
+__all__ = ['GapLikelihood']
