@@ -62,7 +62,7 @@ true_start = True
 import h5py
 
 # Open the HDF5 file in read mode
-with h5py.File('LDC2_Spritz_only_noise.h5', 'r') as f:
+with h5py.File('../LDC2_Spritz_only_noise.h5', 'r') as f:
     # Access the dataset named 'time_series'
     data = f['time_series'][:]
     
@@ -209,12 +209,13 @@ normalized_cutoff = cutoff_freq / nyquist_freq
 ## Design a first-order Butterworth filter
 b, a = butter(N=1, Wn=normalized_cutoff, btype='low', analog=False)
 
+trim_left = 1000
+trim_right = 1000
+X_data_filtered = filtfilt(b, a, data_tdi_X)[trim_left:-trim_right]
+Y_data_filtered = filtfilt(b, a, data_tdi_Y)[trim_left:-trim_right]
+Z_data_filtered = filtfilt(b, a, data_tdi_Z)[trim_left:-trim_right]
 
-X_data_filtered = filtfilt(b, a, data_tdi_X)[500:-500]
-Y_data_filtered = filtfilt(b, a, data_tdi_Y)[500:-500]
-Z_data_filtered = filtfilt(b, a, data_tdi_Z)[500:-500]
-
-time = time[500:-500]
+time = time[trim_left:-trim_right]
 freqs = np.fft.rfftfreq(len(X_data_filtered), dt)  # fs =1/dt
 
 ## --------------------------  Get the filter's frequency response -------------  ##
@@ -270,6 +271,103 @@ fft_data_XYZ = xp.array([Xnfft[frequencymask] ,Ynfft[frequencymask] ,Znfft[frequ
 h = h[frequencymask]  
 
 
+## ------------ DIAGNOSTIC: Check model vs data at different parameter values ------------ ##
+
+# Test three scenarios:
+# 1. True parameter value
+# 2. Converged parameter value  
+# 3. Prior upper bound
+
+test_values = {
+    'True value': 2.4e-15,
+    'Converged value': 1.3e-14,
+    'Prior upper': 1e-14
+}
+
+fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+axes = axes.flatten()
+
+for idx, (label, A_test) in enumerate(test_values.items()):
+    # Get model PSD at this parameter value
+    A, B, C, D, F, G = parameter_noise_amplitude[0:]
+    psd_model, csd_model = noise_models_correlation_spritz(
+        freqs_cut,
+        acc_level=A_test,
+        readout_tmi=B,
+        readout_rfi=C,
+        readout_isi=D,
+        backlink_tmi=F,
+        backlink_rfi=G,
+        T=average_armlength
+    )
+    
+    psd_estimate = noise_models_correlation_spritz(
+            freqs_cut,
+            acc_level=A_test,
+            readout_tmi=B,
+            readout_rfi=C,
+            readout_isi=D,
+            backlink_tmi=F,
+            backlink_rfi=G,
+            T=average_armlength,
+        )
+
+    
+    # Apply filter and normalization
+    pre_fact = 1/(2*df)
+    
+    # Test WITH filter
+    psd_model_with_filter = pre_fact * psd_model * np.abs(h)**4
+    psd_estimate_with_filter = pre_fact * psd_estimate[0] * np.abs(h)**4
+    
+    # Compute data periodogram (this is what the likelihood sees)
+    data_periodogram_X = np.abs(fft_data_XYZ[0])**2
+    data_periodogram_Y = np.abs(fft_data_XYZ[1])**2
+    data_periodogram_Z = np.abs(fft_data_XYZ[2])**2
+    
+    # Plot X channel
+    ax = axes[idx]
+    ax.loglog(freqs_cut, data_periodogram_Y, 'o', alpha=0.2, markersize=2, label='Data (X)', color='C0')
+    ax.loglog(freqs_cut, psd_model_with_filter, '-', linewidth=2, label='True Model WITH filter', color='C1')
+    ax.loglog(freqs_cut, psd_estimate_with_filter, '-', linewidth=2, label='Estimated Model WITH filter', color='C2')
+    ax.set_xlabel('Frequency [Hz]')
+    ax.set_ylabel('Variance (covariance units)')
+    ax.set_title(f'{label}: A = {A_test:.2e}')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig("plots/diagnostic_model_vs_data.png", dpi=200)
+plt.close()
+
+print("\n" + "="*60)
+print("DIAGNOSTIC RESULTS:")
+print("="*60)
+
+# Compute mean ratios
+pre_fact = 1/(2*df)
+for label, A_test in test_values.items():
+    psd_model, _ = noise_models_correlation_spritz(
+        freqs_cut, acc_level=A_test, readout_tmi=B, readout_rfi=C,
+        readout_isi=D, backlink_tmi=F, backlink_rfi=G, T=average_armlength
+    )
+    
+    psd_no_filter = pre_fact * psd_model
+    psd_with_filter = pre_fact * psd_model * np.abs(h)**4
+    
+    mean_ratio_no_filter = np.mean(data_periodogram_X / psd_no_filter)
+    mean_ratio_with_filter = np.mean(data_periodogram_X / psd_with_filter)
+    
+    print(f"\n{label} (A = {A_test:.2e}):")
+    print(f"  Mean(Data/Model) WITHOUT filter: {mean_ratio_no_filter:.3f}")
+    print(f"  Mean(Data/Model) WITH filter:    {mean_ratio_with_filter:.3f}")
+    print(f"  → If ratio ≈ 1, model matches data well")
+    print(f"  → If ratio > 1, model underestimates (sampler increases A)")
+    print(f"  → If ratio < 1, model overestimates (sampler decreases A)")
+
+print("="*60)
+print("\nDiagnostic plot saved to: plots/diagnostic_model_vs_data.png")
+print("="*60 + "\n")
 ## -----------noise moves-----------##
 
 moves = [(StretchMove(gibbs_sampling_setup ="noise",live_dangerously=False))]
@@ -280,6 +378,7 @@ coords = { "noise": np.zeros((ntemps, nwalkers, nleaves_max["noise"], ndims["noi
 
 d2 = 1e-2  # 1% of the true value
 
+# starting_coords = parameter_noise_amplitude[0] + d2 *parameter_noise_amplitude[0]* np.abs(np.random.randn(nwalkers * ntemps, ndims['noise']))
 starting_coords = parameter_noise_amplitude[0] + d2 *parameter_noise_amplitude[0]* np.abs(np.random.randn(nwalkers * ntemps, ndims['noise']))
 
 coords["noise"] = starting_coords.reshape(ntemps, nwalkers, nleaves_max["noise"], ndims['noise'])
@@ -292,14 +391,13 @@ priors = {}
 parameter_noise_amplitude = [2.4e-15, 1.42e-12, 3.32e-12, 6.35e-12, 3.0e-12, 3.0e-12]
 
 priors_noise = {
-    0: uniform_dist(1e-16, 1e-14),}
-'''
-1: uniform_dist(1.349e-12, 1.491e-12),
-2: uniform_dist(3.154e-12, 3.486e-12),
-3: uniform_dist(6.033e-12, 6.668e-12),
-4: uniform_dist(2.85e-12, 3.15e-12),
-5: uniform_dist(2.85e-12, 3.15e-12)
-'''
+   0: uniform_dist(1e-18, 1e-10),
+# 1: uniform_dist(-1e-10, 1e-10)
+# 2: uniform_dist(3.154e-12, 3.486e-12),
+# 3: uniform_dist(6.033e-12, 6.668e-12),
+# 4: uniform_dist(2.85e-12, 3.15e-12),
+# 5: uniform_dist(2.85e-12, 3.15e-12)
+}
 
 priors['noise'] = ProbDistContainer(priors_noise)
 
@@ -359,15 +457,7 @@ def update_fn(i, res, samp):
 
         likelihood = samp.get_log_like()[skipp:, 0,:]
         import matplotlib.pyplot as plt
-        plt.figure(figsize=(10, 6)),
-        # horizontal line
-        plt.axhline(y=y_value, color='r', linestyle='--', linewidth=1.5, label=f'y = {y_value:.2e}')
-        plt.plot(np.arange(len( likelihood )), likelihood )
-        plt.xlabel('iter')
-        plt.ylabel('Likelihood noise')
-        plt.grid(True)
-        plt.savefig("plots/noise_likelihood.png", dpi=300)
-        plt.close()
+
         noise_sampler= samp.get_chain()["noise"][skipp:,0].reshape(-1,ndims['noise'])
         
         parameter_labels = [f'noise_amplitude_{j}' for j in range(0,ndims['noise'])]
@@ -426,8 +516,9 @@ def log_like_fn(x, data, freqs ,df,dt,filter_tf, subset=1):
         )
 
         # Covariance matrix components
-        sigma_sq = psd_estimate[0] * np.abs(filter_tf)**4
-        rho = psd_estimate[1] * np.abs(filter_tf)**4
+        pre_fact = 1/(2*df)
+        sigma_sq = pre_fact * psd_estimate[0] * np.abs(filter_tf)**4
+        rho = pre_fact * psd_estimate[1] * np.abs(filter_tf)**4
 
         # Build covariance matrices for all frequencies
         csd_XY = np.array([
@@ -437,30 +528,20 @@ def log_like_fn(x, data, freqs ,df,dt,filter_tf, subset=1):
         ])  # shape (3, 3, n_freqs)
 
 
-        '''
-        plt.figure()
-        plt.loglog(freqs,df*np.abs(data[0]*data[0]),'-',alpha=1,label='data')
-        plt.loglog(freqs,np.abs(sigma_sq),'-',alpha=1,label='model')
-        plt.xlabel('Frequency [Hz]')
-        plt.ylabel('Spline example ')
-        plt.legend()
-        plt.savefig("plots/estimated_model.png")
-        plt.close()
-        '''
         # Move frequency axis first for easier looping
-        csd_XY_pinv = np.linalg.pinv(csd_XY.transpose(2, 0, 1))  # (n_freqs, 3, 3)
+        csd_XY_inv = np.linalg.inv(csd_XY.transpose(2, 0, 1))  # (n_freqs, 3, 3)
 
         # Quadratic term: data[n]^H Σ⁻¹ data[n]
-        quad_terms = np.einsum('ni,nij,nj->n', np.conj(data.T), csd_XY_pinv, data.T)
+        quad_terms = np.einsum('ni,nij,nj->n', data.T.conj(), csd_XY_inv, data.T)
 
         # Log-determinant term
-        sign, logdet = np.linalg.slogdet(csd_XY.transpose(2, 0, 1) / dt)
+        sign, logdet = np.linalg.slogdet(csd_XY.transpose(2, 0, 1))
         if np.any(sign <= 0):
             raise ValueError(f"Covariance not positive definite for A = {A:e}")
 
         # Compute log-likelihood
         
-        loglike = -0.5*np.sum(logdet + 4* dt*quad_terms).real
+        loglike = -0.5*np.sum(logdet + quad_terms).real
     
 
 
