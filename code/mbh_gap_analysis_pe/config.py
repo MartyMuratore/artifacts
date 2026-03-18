@@ -147,7 +147,7 @@ class Config:
         # ==================== MCMC SETTINGS ====================
         
         # Sampler configuration
-        self.n_iterations = 1000              # Number of MCMC steps per walker
+        self.n_iterations = 5000              # Number of MCMC steps per walker
         self.n_walkers = 50                   # Number of ensemble walkers
         self.n_temps = 1                      # Number of parallel tempering temperatures
         self.burnin = 0                       # Burnin steps (applied during analysis)
